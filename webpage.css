@@ -19,13 +19,21 @@ a {
   padding: 10px;
 }
 
+.entrytitle {
+  color: #15ee4f
+}
+
 .entry {
   background-color: #551A8B;
   margin: 20px;
   padding: 5px 40px 5px 40px;
   text-align: left;
+  color: #c392f0;
 }
 
+.code {
+  color: #FF9F00;
+}
 
 .entry {
   border-radius: 10px;

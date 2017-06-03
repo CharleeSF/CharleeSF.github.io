@@ -16,7 +16,73 @@
   			<div class="entry">
   				<h2 class="entrytitle">First week (June 3rd, 2017)</h2>
   				<p type="entrytext">
-  					Some stuff about last week.
+  					<bold>Benchmarking benefit of tabular data.</bold>
+  				</p>
+  				<p type="entrytext">
+  					As part of a preparatory exercise I was asked to address the potential benefit of using precomputed tables instead of calculating certain functions at every timestep (see <a href="https://github.com/brian-team/brian2/issues/87" target="_blank">here</a>). In addition, we wanted to explore the cost-benefit of linear interpolation between table values.
+  				</p>
+  				<p type="entrytext">
+  					The first issue I ran into was that Brian was not working with weave. It kept giving 'undefined symbol' errors. It must have been related to the way I installed everything into my conda environment, because switching to an environment and reinstalling everything through conda (<code>conda install -n $environmentname -c brian-team brian2</code>) and deleting the actual brian package itself (because I want it to run from the code in my repository rather than the installed package.. not sure if this is the way to go about this 'profesionally'), but it got everything to work.
+  				</p>
+  				<p type="entrytext">
+  					To implement the table search in any of the target languages one of the challenges was to figure out how to give them access to the globally defined precomputed table. An example of the end-result looks as follows (note the namespace keyword, the global _namespace in the cython code, and the accessing of the variables):
+  					<div class="code"><pre><code>
+@implementation('cpp', namespace={'_values_alpha_m': array(_values_alpha_m)}, code='''
+double alpha_m_table(double index)
+{
+    return _namespace_values_alpha_m[int(index)];
+}
+''')
+@implementation('cython', code='''
+cdef double alpha_m_table(double index):
+    global _namespace_values_alpha_m
+    return _namespace_values_alpha_m[int(index)]
+''', namespace={'_values_alpha_m':_values_alpha_m}
+)
+@check_units(idx=1,result=Hz)
+def alpha_m_table(idx):
+    return _values_alpha_m[idx]
+        			</code></pre></div>
+        			As can be seen, the input to the functions is the index to the precomputed table rather than the membrane potential. The index is calculated in a separate function (so that it does not have to be recomputed for every table) with the following code:
+        			<div class="code"><pre><code>
+@implementation('cpp',
+                code='''
+double int_calculator_table(double v)
+{
+    return ((v + 100*0.001)/(%f) + .5);
+}
+'''%(v_res))
+@implementation('cython',
+                code='''
+cdef int int_calculator_table(double v):
+    return int((v + 100*0.001)/(%f)+0.5)
+'''%(v_res))
+@check_units(v=volt,result=1)
+def int_calculator_table(v):
+    return int_((v + 100*mV)/(v_res)+0.5)
+    				</code></pre></div>
+    				The + .5 is omitted in the case of the interpolated functions, for which the weave code is:
+    				<div class="code"><pre><code>
+#include &lt;math.h&gt;
+double alpha_m_interpolation(double index)
+{
+    int floor_ind = int(floor(index));
+	double v0 = _namespace_values_alpha_m[floor_ind];
+    double v1 = _namespace_values_alpha_m[floor_ind+1];
+    double vfrac = index-floor_ind;
+
+    return (1 - vfrac) * v0 + vfrac * v1;
+}
+  					</code></pre></div>
+  				</p>
+  				<p>
+  					So far the benchmarking is quite simple/limited. I simulate a 100 neurons with increasing constant input and compare the tabled/interpolated membrane traces with the calculated one according to the mean squared error. I plotted the simulation time (or specifically, the time spent in the stateupdater code) against the MSE. 
+  					<p style="text-align:center;"><img src="exponentialeuler_timeMSE.png"></p>
+  					<p style="text-align:center;"><img src="rk4_timeMSE.png"></p>
+  				</p>
+
+  				<p>
+  					<bold>Adding GSL to Brian.</bold>
   				</p>
   			</div>
   		</div>
