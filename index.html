@@ -14,6 +14,21 @@
   		</div>
   		<div id="entries">
         <div class="entry">
+        <h2 class="entrytitle">Third week (June 16th, 2017)</h2>
+        <h3><bold>Rewriting template functions using Variables dictionary</bold></h3>
+        <p type="entrytext">
+        After Marcel had a look at my code he said it would be possible to improve it to use the information available to each variable in the variable dictionary. That this dictionary is available in this namespace was new to me (the whole templating system remains a bit mysterious to me). This makes things a lot easier! I now have access to all variables and their types, allowing me to easily find the datatypes and array_names. The only regex expression I need is to identify the _gsl_{var}_f{ind} variables I used to signify the places where we need GSL-specific syntax. The rewritten functions look much better as can be seen <a href="https://github.com/brian-team/brian2/blob/fdbf536a0b9afd0959aee147ba157a1fc68768bb/brian2/codegen/templates.py" target="_blank">here</a> (although improvements are always possible, they will come, don't worry).
+        Except...
+        </p>
+        <p type="entrytext">
+        All the data sent to the function that describes the differential system is sent in a parameters struct. I define the parameters struct based on the information available in dictionary of Variables. Here the datatype, dimensions and whether a variable is an array or not etc. is saved. This works great, however, the variables defined by brian itself to achieve loop invariant optimization are not saved in the variables dict. Unfortunately, it seems like no information about these variables is saved at all, except for the string that describes the statement, in the scalar_code variable, and in the case of cython, the datatype isn't even mentioned in this string. Because of this issue, it seems like we have to change a few things in the code generation process, which means that we have to make our own CodeObject and CodeGenerator classes.
+        </p>
+        <h3><bold>Defining GSLCodeObject and GSLCodeGenerator</bold></h3>
+        <p type="entrytext">
+        This was actually less difficult than what I thought at first. Although, I haven't tried to change anything about the code generation process yet. All I have done is create a new folder GSLCython_rt and copied the complete templates folder (except using our own stateupdater.pyx instead of the one normally used by brian). Now we can tell the Templater class (defined in the CodeObject) to find it's templates in this folder, while we define the generator_class to be our GSL generator. For the rest, all methods are currently still directly inherited from the cython code generation classes (<a href="https://github.com/brian-team/brian2/commit/63b4415dc25c63cf35620755c9c2276ad2772673" target="_blank">this</a> is the commit). Now the challenge is to find the nicest spot to extract and save the _lio information. (NB: turning off loop-invariant-optimization creates running <a href="https://github.com/brian-team/brian2/commit/bdd8bab241c389f2483b93ed093dd14b587874f0" target="_blank">code</a>! (after removing the nogil flags from the used functions, because int_ would not work with nogil))
+        </p>
+        </div>
+        <div class="entry">
           <h2 class="entrytitle">Second week (June 11th, 2017)</h2>
           <h3>
             <bold>Writing a new StateUpdateMethod + template</bold>
@@ -82,7 +97,8 @@ _array_neurongroup_v[_idx] = v
 
 import numpy as _numpy
 cimport numpy as _numpy
-from libc.math cimport sin, cos, tan, sinh, cosh, tanh, exp, log, log10, sqrt, asin, acos, atan, fmod, floor, ceil
+from libc.math cimport sin, cos, tan, sinh, cosh, tanh, exp, log, 
+        log10, sqrt, asin, acos, atan, fmod, floor, ceil
 cdef extern from "math.h":
     double M_PI
 # Import the two versions of std::abs
@@ -197,33 +213,39 @@ def main(_namespace):
     _var_N = _namespace["_var_N"]
     cdef int64_t N = _namespace["N"]
     _var_v0 = _namespace["_var_v0"]
-    cdef _numpy.ndarray[double, ndim=1, mode='c'] _buf__array_neurongroup_v0 = _namespace['_array_neurongroup_v0']
+    cdef _numpy.ndarray[double, ndim=1, mode='c'] 
+            _buf__array_neurongroup_v0 = _namespace['_array_neurongroup_v0']
     cdef double * _array_neurongroup_v0 = &lt;double *&gt; _buf__array_neurongroup_v0.data
     cdef int _num_array_neurongroup_v0 = len(_namespace['_array_neurongroup_v0'])
     cdef double v0
     cdef double _gsl__array_neurongroup_v_y0
     _var_t = _namespace["_var_t"]
-    cdef _numpy.ndarray[double, ndim=1, mode='c'] _buf__array_defaultclock_t = _namespace['_array_defaultclock_t']
+    cdef _numpy.ndarray[double, ndim=1, mode='c'] 
+            _buf__array_defaultclock_t = _namespace['_array_defaultclock_t']
     cdef double * _array_defaultclock_t = &lt;double *&gt; _buf__array_defaultclock_t.data
     cdef double t
     _var_ms = _namespace["_var_ms"]
     cdef double ms = _namespace["ms"]
     _var_v = _namespace["_var_v"]
-    cdef _numpy.ndarray[double, ndim=1, mode='c'] _buf__array_neurongroup_v = _namespace['_array_neurongroup_v']
+    cdef _numpy.ndarray[double, ndim=1, mode='c'] 
+            _buf__array_neurongroup_v = _namespace['_array_neurongroup_v']
     cdef double * _array_neurongroup_v = &lt;double *&gt; _buf__array_neurongroup_v.data
     cdef int _num_array_neurongroup_v = len(_namespace['_array_neurongroup_v'])
     cdef double v
     _var_dt = _namespace["_var_dt"]
-    cdef _numpy.ndarray[double, ndim=1, mode='c'] _buf__array_defaultclock_dt = _namespace['_array_defaultclock_dt']
+    cdef _numpy.ndarray[double, ndim=1, mode='c'] 
+            _buf__array_defaultclock_dt = _namespace['_array_defaultclock_dt']
     cdef double * _array_defaultclock_dt = &lt;double *&gt; _buf__array_defaultclock_dt.data
     cdef double dt = _namespace["dt"]
     _var_lastspike = _namespace["_var_lastspike"]
-    cdef _numpy.ndarray[double, ndim=1, mode='c'] _buf__array_neurongroup_lastspike = _namespace['_array_neurongroup_lastspike']
+    cdef _numpy.ndarray[double, ndim=1, mode='c'] 
+            _buf__array_neurongroup_lastspike = _namespace['_array_neurongroup_lastspike']
     cdef double * _array_neurongroup_lastspike = &lt;double *&gt; _buf__array_neurongroup_lastspike.data
     cdef int _num_array_neurongroup_lastspike = len(_namespace['_array_neurongroup_lastspike'])
     cdef double lastspike
     _var_not_refractory = _namespace["_var_not_refractory"]
-    cdef _numpy.ndarray[char, ndim=1, mode='c', cast=True] _buf__array_neurongroup_not_refractory = _namespace['_array_neurongroup_not_refractory']
+    cdef _numpy.ndarray[char, ndim=1, mode='c', cast=True] 
+            _buf__array_neurongroup_not_refractory = _namespace['_array_neurongroup_not_refractory']
     cdef bool * _array_neurongroup_not_refractory = &lt;bool *&gt; _buf__array_neurongroup_not_refractory.data
     cdef int _num_array_neurongroup_not_refractory = len(_namespace['_array_neurongroup_not_refractory'])
     cdef bool not_refractory
