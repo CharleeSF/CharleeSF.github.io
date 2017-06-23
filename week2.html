@@ -1,0 +1,265 @@
+          <h2 class="entrytitle">Second week (June 11th, 2017)</h2>
+          <h3>
+            <bold>Writing a new StateUpdateMethod + template</bold>
+          </h3>
+          <p type="entrytext">
+            There is two issues that we need to solve when implementing support for GSL in Brian. The first is that GSL expects an externally defined (i.e. before the main) function that describes the differential system. Instead, Brian currently writes the differnetial systems in the main itself. There seem to be two ways to get code in front of the main:
+            <ul>
+              <li>
+                Write externally defined functions in the form of 
+                <code>@implementation('cython')</code> etc, (see Brian's documentation on Functions). This code gets added in the support block of the generated files.
+              </li>
+              <li>
+                Change the template to write the differential system code before the main.
+              </li>
+            </ul>
+            The second option sounded like something I wanted to try first because it seems more in line with Brian's current structure. 
+            </p>
+          <p type="entrytext">
+            The second issue with implementing GSL support in Brian is that the function that we provide to GSL requires some specific syntax. The translation from string-defined differential systems to this syntax is not possible in Brian as it is. If we translate the differential systems with GSL-specific syntax too early, Brian cannot evaluate the expressions in Python anymore, which is necessary for all the (very useful) checks Brian does on user code (e.g. unit checks, optimization by pulling out 'loop-invariant optimization' constants). 
+          </p>
+          <p type = "entrytext">
+            One solution for this is to wait aaaall the way to the end before we translate the code with GSL-specific syntax. Instead, in the translation from string-equations to stateupdate-specific abstract_code I give the variables that need to be changed a name that can be recognized at the end for translation, but that Python can still evaluate. For the f[0] that GSL wants to define the differential equations I call the variables _gsl_{variablename}_f0, and a similar pattern for y[0]. An example of the resulting abstract code would be:
+            <div class="code"><pre><code>
+not_refractory = (t - lastspike) > 0.005000
+v = _gsl__array_neurongroup_v_y0
+_gsl__array_neurongroup_v_f0 = 0.1*(-v + 2.0*v0)*int(not_refractory)/ms
+            </code></pre></div>
+            for the differential system that looks like this (note that I added some dummy inbetween subexpressions just to add some complexity):
+            <div class="code"><pre><code>
+dv/dt = (v1 - v) / tau : volt (unless refractory)
+v1 = v0*multi : volt
+multi = 2 : 1
+v0 : volt
+tau = 10*ms : second
+            </code></pre></div>          
+            This abstract_code is translated by the already existing mechanisms of Brian and sent to the Jinja2 templater. The incoming translated code of the following looks like this:
+            <div class="code"><pre><code>
+v0 = _array_neurongroup_v0[_idx]
+t = _array_defaultclock_t[0]
+v = _array_neurongroup_v[_idx]
+lastspike = _array_neurongroup_lastspike[_idx]
+not_refractory = _array_neurongroup_not_refractory[_idx]
+not_refractory = (t - lastspike) > 0.005
+if not_refractory:
+    v = _gsl__array_neurongroup_v_y0
+if not_refractory:
+    _gsl__array_neurongroup_v_f0 = _lio_1 * ((- v) + (2.0 * v0))
+else:
+    _gsl__array_neurongroup_v_f0 = 0.0
+_array_neurongroup_not_refractory[_idx] = not_refractory
+_array_neurongroup_v[_idx] = v
+            </code></pre></div>
+            Even after we replace _gsl__array_neurongroup_v_f0 with f[0] etc., there are several problems with this code when it comes to having it put in the function we send to GSL. 
+            <ul>
+            <li>_array_neurongroup_v0 etc. is not in the namespace of this function</li>
+            <li>we need to declare the variables (i.e. cdef double v0)</li>
+            <li>we do not want the code to redeclare/set t, as this is an argument to the function that is changed by GSL</li>
+            <li>Although this is not going to stop the code from running: the lines setting the statevariables (<code>v = _array_neurongroup_v[_idx]</code>) do not do anything, since we set v = y[0] ourselves.</li>
+            </ul>
+          I wrote some not-so-elegant <a href="https://github.com/brian-team/brian2/commit/fb0a1b2324724de37501d8495659056b934a44a0" target="_blank">code</a> that solves these problems (see first changes in stateupdater.pyx template and which functions are called defined in templates.py). The first issue is tackled by adding all needed variables to a <code>struct params</code>, and to translate the first array to value statements to something like <code>v0 = p._array_neruongroup_v0[_idx]</code>. The pointers to these arrays are saved in params in the main (separate function also done through the templating). The declaration of variables is rather simple, except for the fact that we have to know the datatypes of the variables. For this reason, I also had to send the loading of the namespace that is usually done in main with the vector_code to the template-filter. Finally, I just tell the 'translator' to ignore t. The result is the following cython script (especially see func, but also the required lines of code in main):
+          <div class="code"><pre><code>
+#cython: boundscheck=False
+#cython: wraparound=False
+#cython: cdivision=True
+#cython: infer_types=True
+
+import numpy as _numpy
+cimport numpy as _numpy
+from libc.math cimport sin, cos, tan, sinh, cosh, tanh, exp, log, 
+        log10, sqrt, asin, acos, atan, fmod, floor, ceil
+cdef extern from "math.h":
+    double M_PI
+# Import the two versions of std::abs
+from libc.stdlib cimport abs  # For integers
+from libc.math cimport abs  # For floating point values
+from libcpp cimport bool
+
+_numpy.import_array()
+cdef extern from "numpy/ndarraytypes.h":
+    void PyArray_CLEARFLAGS(_numpy.PyArrayObject *arr, int flags)
+from libc.stdlib cimport free
+
+cdef extern from "stdint_compat.h":
+    # Longness only used for type promotion
+    # Actual compile time size used for conversion
+    ctypedef signed int int32_t
+    ctypedef signed long int64_t
+    ctypedef unsigned long uint64_t
+    # It seems we cannot used a fused type here
+    cdef int int_(bool)
+    cdef int int_(char)
+    cdef int int_(short)
+    cdef int int_(int)
+    cdef int int_(long)
+    cdef int int_(float)
+    cdef int int_(double)
+    cdef int int_(long double)
+
+
+# support code
+
+
+
+# template-specific support code
+from libc.stdlib cimport malloc, free
+
+cdef extern from "gsl/gsl_odeiv2.h":
+    # gsl_odeiv2_system
+    ctypedef struct gsl_odeiv2_system:
+        int (* function) (double t,  double y[], double dydt[], void * params) nogil
+        int (* jacobian) (double t,  double y[], double * dfdy, double dfdt[], void * params) nogil
+        size_t dimension
+        void * params
+
+    ctypedef struct gsl_odeiv2_step
+    ctypedef struct gsl_odeiv2_control
+    ctypedef struct gsl_odeiv2_evolve
+    ctypedef struct gsl_odeiv2_driver
+
+    ctypedef struct gsl_odeiv2_step_type
+
+    gsl_odeiv2_step_type *gsl_odeiv2_step_rk2
+
+    int gsl_odeiv2_driver_apply(
+        gsl_odeiv2_driver *d, double *t, double t1, double y[]) nogil
+
+    gsl_odeiv2_driver *gsl_odeiv2_driver_alloc_y_new(
+        gsl_odeiv2_system *sys, gsl_odeiv2_step_type *T,
+        double hstart, double epsabs, double epsrel) nogil
+
+    int gsl_odeiv2_driver_free(gsl_odeiv2_driver *d) nogil
+
+#temp
+cdef double* assign_memory_y():
+    return &lt;double*&gt;malloc(sizeof(double))
+#endtemp
+
+cdef struct parameters:
+    int _idx
+    bool*  _array_neurongroup_not_refractory
+    double*  _array_neurongroup_v
+    double _lio_1
+    double* _array_neurongroup_lastspike
+    double* _array_neurongroup_v0
+
+cdef struct statevar_container:
+    double* _array_neurongroup_v
+
+cdef int fill_y_vector(statevar_container* statevariables, double * y, int _idx) nogil:
+    y[0] = statevariables._array_neurongroup_v[_idx]
+
+cdef int empty_y_vector(statevar_container* statevariables, double * y, int _idx) nogil:
+    statevariables._array_neurongroup_v[_idx] = y[0]
+
+cdef int func(double t, const double y[], double f[], void *params) nogil:
+    cdef parameters* p = &lt;parameters*&gt;params
+    cdef int _idx = p._idx
+    cdef double v0
+    cdef double lastspike
+    cdef bool not_refractory
+    cdef double v
+    v0 = p._array_neurongroup_v0[_idx]
+    v = p._array_neurongroup_v[_idx]
+    lastspike = p._array_neurongroup_lastspike[_idx]
+    not_refractory = p._array_neurongroup_not_refractory[_idx]
+    not_refractory = (t - lastspike) &gt; 0.005
+    if not_refractory:
+        v = y[0]
+    if not_refractory:
+        f[0] = p._lio_1 * ((- v) + (2.0 * v0))
+    else:
+        f[0] = 0.0
+    p._array_neurongroup_not_refractory[_idx] = not_refractory
+    p._array_neurongroup_v[_idx] = v
+
+
+def main(_namespace):
+    cdef int _idx
+    cdef int _vectorisation_idx
+        
+    cdef double tau
+    _var_N = _namespace["_var_N"]
+    cdef int64_t N = _namespace["N"]
+    _var_v0 = _namespace["_var_v0"]
+    cdef _numpy.ndarray[double, ndim=1, mode='c'] 
+            _buf__array_neurongroup_v0 = _namespace['_array_neurongroup_v0']
+    cdef double * _array_neurongroup_v0 = &lt;double *&gt; _buf__array_neurongroup_v0.data
+    cdef int _num_array_neurongroup_v0 = len(_namespace['_array_neurongroup_v0'])
+    cdef double v0
+    cdef double _gsl__array_neurongroup_v_y0
+    _var_t = _namespace["_var_t"]
+    cdef _numpy.ndarray[double, ndim=1, mode='c'] 
+            _buf__array_defaultclock_t = _namespace['_array_defaultclock_t']
+    cdef double * _array_defaultclock_t = &lt;double *&gt; _buf__array_defaultclock_t.data
+    cdef double t
+    _var_ms = _namespace["_var_ms"]
+    cdef double ms = _namespace["ms"]
+    _var_v = _namespace["_var_v"]
+    cdef _numpy.ndarray[double, ndim=1, mode='c'] 
+            _buf__array_neurongroup_v = _namespace['_array_neurongroup_v']
+    cdef double * _array_neurongroup_v = &lt;double *&gt; _buf__array_neurongroup_v.data
+    cdef int _num_array_neurongroup_v = len(_namespace['_array_neurongroup_v'])
+    cdef double v
+    _var_dt = _namespace["_var_dt"]
+    cdef _numpy.ndarray[double, ndim=1, mode='c'] 
+            _buf__array_defaultclock_dt = _namespace['_array_defaultclock_dt']
+    cdef double * _array_defaultclock_dt = &lt;double *&gt; _buf__array_defaultclock_dt.data
+    cdef double dt = _namespace["dt"]
+    _var_lastspike = _namespace["_var_lastspike"]
+    cdef _numpy.ndarray[double, ndim=1, mode='c'] 
+            _buf__array_neurongroup_lastspike = _namespace['_array_neurongroup_lastspike']
+    cdef double * _array_neurongroup_lastspike = &lt;double *&gt; _buf__array_neurongroup_lastspike.data
+    cdef int _num_array_neurongroup_lastspike = len(_namespace['_array_neurongroup_lastspike'])
+    cdef double lastspike
+    _var_not_refractory = _namespace["_var_not_refractory"]
+    cdef _numpy.ndarray[char, ndim=1, mode='c', cast=True] 
+            _buf__array_neurongroup_not_refractory = _namespace['_array_neurongroup_not_refractory']
+    cdef bool * _array_neurongroup_not_refractory = &lt;bool *&gt; _buf__array_neurongroup_not_refractory.data
+    cdef int _num_array_neurongroup_not_refractory = len(_namespace['_array_neurongroup_not_refractory'])
+    cdef bool not_refractory
+
+    if '_owner' in _namespace:
+        _owner = _namespace['_owner']
+
+    # scalar code
+    _vectorisation_idx = 1
+
+    dt = _array_defaultclock_dt[0]
+    cdef statevar_container * statevariables = &lt;statevar_container *&gt;malloc(sizeof(statevar_container))
+    cdef parameters * p = &lt;parameters *&gt;malloc(sizeof(parameters))
+        
+    p._array_neurongroup_not_refractory = &lt;bool *&gt; _buf__array_neurongroup_not_refractory.data
+    statevariables._array_neurongroup_v = &lt;double *&gt; _buf__array_neurongroup_v.data
+    p._array_neurongroup_lastspike = &lt;double *&gt; _buf__array_neurongroup_lastspike.data
+    p._array_neurongroup_v0 = &lt;double *&gt; _buf__array_neurongroup_v0.data
+
+        
+    p._lio_1 = 0.1 / ms
+
+    cdef double * y = assign_memory_y()
+    
+    cdef gsl_odeiv2_system sys
+    cdef gsl_odeiv2_driver * d
+    sys.function = func
+    sys.dimension = 2
+    sys.params = p
+    
+    d = gsl_odeiv2_driver_alloc_y_new(
+        &sys, gsl_odeiv2_step_rk2, 
+        1e-6, 1e-6, 0.0)       
+
+    # vector code
+    for _idx in range(N):
+        _vectorisation_idx = _idx
+
+        t = _array_defaultclock_t[0]
+        t1 = t + dt
+
+        p._idx = _idx
+        fill_y_vector(statevariables, y, _idx)
+        gsl_odeiv2_driver_apply(d, &t, t1, y)
+        empty_y_vector(statevariables, y, _idx)
+          </code></pre></div>
+          This compiles properly, but gives a segmentation error after a few timesteps. Note that there is some unnecessary stuff going on in the code still, but it is a start. The only thing I'm worrying about is that this method is not properly generalizable or that we cannot achieve the indexing properly when we have multiple indexes for the stateupdates. I guess we'll find out later..
+          </p>
