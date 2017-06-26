@@ -1,1 +1,26 @@
-Text for week 4 is to come soon! 
+<h2 class="entrytitle">Fourth week (June 23rd, 2017)</h2>
+
+<h3><bold>Generalizing so we only need one GSLCodeGenerator</bold></h3>
+<p type="entrytext">
+Although our GSLCythonCodeObject and GSLCythonCodeGenerator do the job for generating Cython code that integrates with the GSL ODE integrators, we eventually want to be able to also generate Weave and CPP standalone code that does the same. An important step in writing this code is deciding which parts of the code can easily be generalized for all target languages, and which code should be rewritten for a target language. 
+</p>
+<p type="entrytext">
+The steps taken by the GSLCodeGenerator to prepare the user code for the templater are target-code independent. It would thus be ideal if we could keep one GSLCodeGenerator class for all target languages. However, when we initialize this class we set self.generator to the CythonCodeGenerator, to later use it's translating methods. Instead, we want to be able to do something like <code class="code">self.generator = original_generator_class()</code>. The original_generator_class is now set in the CodeObject: this way, we need individual CodeObject classes for each target langauge in combination with GSL. In this CodeObject we also set the folder where to find the templates that differ for the GSL integrator.
+Now I just have to write a new template for weave/CPP standalone and generalize the template functions/write new functions. This will be one of the next steps. The commit containing all these changes (and some more discussed later) can be found <a href="https://github.com/brian-team/brian2/commit/93a0eb46915c60d6598854ce8f5cfdba8a5cbfe7" target="_blank">here</a>.
+</p>
+
+<h3><bold>Adding lio variables as kwds to template</bold></h3>
+<p type="entrytext">
+As discussed earlier, we miss some information needed by the template to write the GSL support code: the datatype of the lio variables (and potentially other variables added by Brian). These variables are accessible upon translation from abstract_code to target-language specific code: hence, the translation code is the piece of code we want to add some lines to. 
+To do so we found that we had to override the super-class's translate method with our own, but copy most of the super-class's translate method's code into this (not super pretty). After all the normal translating that is done by methods of the original_codeobject_class, we scan through the statevariable update statements for variables that are not in the default variable dictionary and add these to our own dictionary ('other_variables') together with their datatype. This dictionary is sent to the templater as a keyword.
+</p>
+
+<h3><bold>Global GSL preferences</bold></h3>
+<p type="entrytext">
+The GSL settings (integrator, step sizes, whether to use an adaptable timestep, etc.) were added as a preference by the BrianGlobalPreferences.register_preferences method. These, too, were added as a keyword under the name 'GSL_settings'. <a href="https://github.com/brian-team/brian2/commit/759f949561b5f17551347485ac9699ca9d682959" target="_blank">This</a> is the commit where most of these changes were made.
+</p>
+
+<h3><bold>Giving templater lists of variables needed in scalar/vector code</bold></h3>
+<p type="entrytext">
+Running the example phase_locking.py I found out that there are situations where some variables are needed for the scalar code, and not in the vector code (calculating lio variables for example). It would thus be a waste to save these variables in the parameters struct (which, btw, I should rename at some point.. TODO) ánd to extract them in the main() namespace. I decided it might be nice to actually have Brian tell the templater which variables are used in the scalar code and which are used in the vector code. Like this, we don't get double declarations and everything is a bit neater. Just like the information on the lio variables, this information is accessible in the generator.translate() method. I check each right-hand-side expression of the scalar code and add all identifiers that are not functions to a list that is saved as a template keyword: the same is done for the right-hand-side expressions of the vector code. This allowed me to simplify the template functions a lot and clean up the generated code to declare only variables that are needed in either pieces of code. The definition of the list is done in the GSL_generator which was commited <a href="https://github.com/brian-team/brian2/commit/93a0eb46915c60d6598854ce8f5cfdba8a5cbfe7#diff-1cb0aaff2c8bbd9504d8b6efd3152ef4" target="_blank">here</a>, while the changes to the stateupdater and templater code using these lists are commited <a href="https://github.com/brian-team/brian2/commit/a9d0d68969dc7ea425c652b6e84dbc98b2f7311e" target="_blank">here</a>.
+</p>
