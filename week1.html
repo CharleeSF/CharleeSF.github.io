@@ -11,7 +11,9 @@
   				<p type="entrytext">
   					To implement the table search in any of the target languages one of the challenges was to figure out how to give them access to the globally defined precomputed table. An example of the end-result looks as follows (note the namespace keyword, the global _namespace in the cython code, and the accessing of the variables):
   					<div class="code"><pre><code>
-@implementation('cpp', namespace={'_values_alpha_m': array(_values_alpha_m)}, code='''
+@implementation('cpp', 
+    namespace={'_values_alpha_m': array(_values_alpha_m)}, 
+    code='''
 double alpha_m_table(double index)
 {
     return _namespace_values_alpha_m[int(index)];
@@ -75,7 +77,8 @@ double alpha_m_interpolation(double index)
   				<div class="code"><pre><code>
 prefs.codegen.cpp.libraries += ['gsl', 'gslcblas']
 prefs.codegen.cpp.headers += ['gsl/gsl_odeiv2.h']
-prefs.codegen.cpp.include_dirs += ['/home/charlee/softwarefolder/gsl-2.3/gsl/']
+prefs.codegen.cpp.include_dirs += 
+    ['/home/charlee/softwarefolder/gsl-2.3/gsl/']
 				</code></pre></div>
 				For the declarations of the functions in Cython I heaviliy relied on <a href="https://github.com/twiecki/CythonGSL" target="_blank">this</a> package linking the GSL library to Cython as a module. All I had to do was copy the right lines. The end result of my first hacked manual cythonscript that properly integrates a simple differential equation can be found in <a href="https://github.com/CharleeSF/brian2/commit/3e86bdedfaf91aa42285a8629107c3bcd20d11ae" target="_blank">this</a> commit.
                 </p>

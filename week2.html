@@ -107,8 +107,10 @@ from libc.stdlib cimport malloc, free
 cdef extern from "gsl/gsl_odeiv2.h":
     # gsl_odeiv2_system
     ctypedef struct gsl_odeiv2_system:
-        int (* function) (double t,  double y[], double dydt[], void * params) nogil
-        int (* jacobian) (double t,  double y[], double * dfdy, double dfdt[], void * params) nogil
+        int (* function) (double t,  double y[], double dydt[], 
+                void * params) nogil
+        int (* jacobian) (double t,  double y[], double * dfdy, 
+                double dfdt[], void * params) nogil
         size_t dimension
         void * params
 
@@ -146,13 +148,16 @@ cdef struct parameters:
 cdef struct statevar_container:
     double* _array_neurongroup_v
 
-cdef int fill_y_vector(statevar_container* statevariables, double * y, int _idx) nogil:
+cdef int fill_y_vector(statevar_container* statevariables, 
+        double * y, int _idx) nogil:
     y[0] = statevariables._array_neurongroup_v[_idx]
 
-cdef int empty_y_vector(statevar_container* statevariables, double * y, int _idx) nogil:
+cdef int empty_y_vector(statevar_container* statevariables, 
+        double * y, int _idx) nogil:
     statevariables._array_neurongroup_v[_idx] = y[0]
 
-cdef int func(double t, const double y[], double f[], void *params) nogil:
+cdef int func(double t, const double y[], double f[], 
+        void *params) nogil:
     cdef parameters* p = &lt;parameters*&gt;params
     cdef int _idx = p._idx
     cdef double v0
@@ -183,40 +188,56 @@ def main(_namespace):
     cdef int64_t N = _namespace["N"]
     _var_v0 = _namespace["_var_v0"]
     cdef _numpy.ndarray[double, ndim=1, mode='c'] 
-            _buf__array_neurongroup_v0 = _namespace['_array_neurongroup_v0']
-    cdef double * _array_neurongroup_v0 = &lt;double *&gt; _buf__array_neurongroup_v0.data
-    cdef int _num_array_neurongroup_v0 = len(_namespace['_array_neurongroup_v0'])
+            _buf__array_neurongroup_v0 =
+            _namespace['_array_neurongroup_v0']
+    cdef double * _array_neurongroup_v0 = 
+            &lt;double *&gt; _buf__array_neurongroup_v0.data
+    cdef int _num_array_neurongroup_v0 = 
+            len(_namespace['_array_neurongroup_v0'])
     cdef double v0
     cdef double _gsl__array_neurongroup_v_y0
     _var_t = _namespace["_var_t"]
     cdef _numpy.ndarray[double, ndim=1, mode='c'] 
-            _buf__array_defaultclock_t = _namespace['_array_defaultclock_t']
-    cdef double * _array_defaultclock_t = &lt;double *&gt; _buf__array_defaultclock_t.data
+            _buf__array_defaultclock_t = 
+            _namespace['_array_defaultclock_t']
+    cdef double * _array_defaultclock_t = 
+            &lt;double *&gt; _buf__array_defaultclock_t.data
     cdef double t
     _var_ms = _namespace["_var_ms"]
     cdef double ms = _namespace["ms"]
     _var_v = _namespace["_var_v"]
     cdef _numpy.ndarray[double, ndim=1, mode='c'] 
-            _buf__array_neurongroup_v = _namespace['_array_neurongroup_v']
-    cdef double * _array_neurongroup_v = &lt;double *&gt; _buf__array_neurongroup_v.data
-    cdef int _num_array_neurongroup_v = len(_namespace['_array_neurongroup_v'])
+            _buf__array_neurongroup_v = 
+            _namespace['_array_neurongroup_v']
+    cdef double * _array_neurongroup_v = 
+            &lt;double *&gt; _buf__array_neurongroup_v.data
+    cdef int _num_array_neurongroup_v = 
+            len(_namespace['_array_neurongroup_v'])
     cdef double v
     _var_dt = _namespace["_var_dt"]
     cdef _numpy.ndarray[double, ndim=1, mode='c'] 
-            _buf__array_defaultclock_dt = _namespace['_array_defaultclock_dt']
-    cdef double * _array_defaultclock_dt = &lt;double *&gt; _buf__array_defaultclock_dt.data
+            _buf__array_defaultclock_dt = 
+            _namespace['_array_defaultclock_dt']
+    cdef double * _array_defaultclock_dt = 
+            &lt;double *&gt; _buf__array_defaultclock_dt.data
     cdef double dt = _namespace["dt"]
     _var_lastspike = _namespace["_var_lastspike"]
     cdef _numpy.ndarray[double, ndim=1, mode='c'] 
-            _buf__array_neurongroup_lastspike = _namespace['_array_neurongroup_lastspike']
-    cdef double * _array_neurongroup_lastspike = &lt;double *&gt; _buf__array_neurongroup_lastspike.data
-    cdef int _num_array_neurongroup_lastspike = len(_namespace['_array_neurongroup_lastspike'])
+            _buf__array_neurongroup_lastspike = 
+            _namespace['_array_neurongroup_lastspike']
+    cdef double * _array_neurongroup_lastspike = 
+            &lt;double *&gt; _buf__array_neurongroup_lastspike.data
+    cdef int _num_array_neurongroup_lastspike = 
+            len(_namespace['_array_neurongroup_lastspike'])
     cdef double lastspike
     _var_not_refractory = _namespace["_var_not_refractory"]
     cdef _numpy.ndarray[char, ndim=1, mode='c', cast=True] 
-            _buf__array_neurongroup_not_refractory = _namespace['_array_neurongroup_not_refractory']
-    cdef bool * _array_neurongroup_not_refractory = &lt;bool *&gt; _buf__array_neurongroup_not_refractory.data
-    cdef int _num_array_neurongroup_not_refractory = len(_namespace['_array_neurongroup_not_refractory'])
+            _buf__array_neurongroup_not_refractory = 
+            _namespace['_array_neurongroup_not_refractory']
+    cdef bool * _array_neurongroup_not_refractory = 
+            &lt;bool *&gt; _buf__array_neurongroup_not_refractory.data
+    cdef int _num_array_neurongroup_not_refractory = 
+            len(_namespace['_array_neurongroup_not_refractory'])
     cdef bool not_refractory
 
     if '_owner' in _namespace:
@@ -226,13 +247,19 @@ def main(_namespace):
     _vectorisation_idx = 1
 
     dt = _array_defaultclock_dt[0]
-    cdef statevar_container * statevariables = &lt;statevar_container *&gt;malloc(sizeof(statevar_container))
+    cdef statevar_container * statevariables = 
+            &lt;statevar_container *&gt;malloc(sizeof(
+            statevar_container))
     cdef parameters * p = &lt;parameters *&gt;malloc(sizeof(parameters))
         
-    p._array_neurongroup_not_refractory = &lt;bool *&gt; _buf__array_neurongroup_not_refractory.data
-    statevariables._array_neurongroup_v = &lt;double *&gt; _buf__array_neurongroup_v.data
-    p._array_neurongroup_lastspike = &lt;double *&gt; _buf__array_neurongroup_lastspike.data
-    p._array_neurongroup_v0 = &lt;double *&gt; _buf__array_neurongroup_v0.data
+    p._array_neurongroup_not_refractory = 
+            &lt;bool *&gt; _buf__array_neurongroup_not_refractory.data
+    statevariables._array_neurongroup_v = 
+            &lt;double *&gt; _buf__array_neurongroup_v.data
+    p._array_neurongroup_lastspike = 
+            &lt;double *&gt; _buf__array_neurongroup_lastspike.data
+    p._array_neurongroup_v0 = 
+            &lt;double *&gt; _buf__array_neurongroup_v0.data
 
         
     p._lio_1 = 0.1 / ms
