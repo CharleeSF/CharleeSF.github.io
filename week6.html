@@ -1,0 +1,16 @@
+<h2 class="entrytitle">Sixth week (July 6st, 2017)</h2>
+<h3>
+<bold>Doing GSL code translation in GSLCodeGenerator rather than templater</bold>
+</h3>
+<p type="entrytext">
+The operations to translate the existing integrator code to GSL compatible code in the templater was getting a bit out of hand. I needed more and more information that was available on the brian side and was sending it to the templater as keywords. Since I had already made GSL generators anyway, we decided it was better that I used this, too, for the translation. Like this, we can do the GSL incorporation more similar to how Brian is already doing its code generaton.
+</p>
+<p type="entrytext">
+To achieve this, I created two new classes that inherit from GSLCodeGenerator; <code class="code">GSLCythnonCodeGenerator</code> and <code class="code">GSLWeaveCodeGenerator</code>. These do not have a new <code class="code">__init__</code> method, but here we can implement all the functions that are target-language specific. The general functions that are the same for both target languages can be added to GSLCodeGenerator itself. How I have implemented this can be found in <a href="https://github.com/CharleeSF/brian2/blob/a21b67aed967b3932019c8b0d266bf4098a55d2a/brian2/codegen/generators/GSL_generator.py" target="_blank">this version</a> of GSLCodeGenerator.py (I haven't made separate files for the different target languages (yet)).
+</p>
+<p type="entrytext">
+The hardest thing for me here is to decide what code to copy to both classes and what to put in the GSLCodeGenerator. For example if you compare the two versions of <code class="code">diff_var_to_replace</code> at lines <a href="https://github.com/CharleeSF/brian2/blob/a21b67aed967b3932019c8b0d266bf4098a55d2a/brian2/codegen/generators/GSL_generator.py#L272" target="_blank">272</a> and <a href="https://github.com/CharleeSF/brian2/blob/a21b67aed967b3932019c8b0d266bf4098a55d2a/brian2/codegen/generators/GSL_generator.py#L358" target="_blank">358</a> you can see both functions are almost identical. The only differences are in defining the left hand side of the variable definition (const double _gsl_etc. vs just _gsl_etc.). So, maybe I should just have the diff_var_to_replace be a general function and have this variable definition saved within the individual classes (similar to func_begin in lines <a href="https://github.com/CharleeSF/brian2/blob/a21b67aed967b3932019c8b0d266bf4098a55d2a/brian2/codegen/generators/GSL_generator.py#L239" target="_blank">239</a> and <a href="https://github.com/CharleeSF/brian2/blob/a21b67aed967b3932019c8b0d266bf4098a55d2a/brian2/codegen/generators/GSL_generator.py#L353" target="_blank">353</a>)? I'm not sure what is best. This is actually the case for most of the functions: the differences are all syntax related and very consistent.
+</p>
+<p type="entrytext">
+Also! This meant I could completely revert templates.py to the master version!
+</p>
