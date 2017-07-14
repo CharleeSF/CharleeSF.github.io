@@ -6,6 +6,8 @@ body {
 	font-family: Trebuchet MS,Lucida Grande,Lucida Sans Unicode,Lucida Sans,Tahoma,sans-serif; 
   text-align: center;
   background-color: #EEE;
+  height: 100%;
+  width: 100%;
 }
 
 a {
@@ -14,8 +16,15 @@ a {
 }
 
 #container {
+  display:flex;
+  flex-direction:column;
   background-color: #c392f0;
-  flex: 1;
+  height:100vh;
+}
+
+#code{
+  flex:2;
+  overflow:auto;
 }
 
 #everything_wrapper {
@@ -39,6 +48,9 @@ a {
   padding: 5px 40px 5px 40px;
   text-align: left;
   color: #c392f0;
+  flex:2;
+  overflow:auto;
+  height:50%;
 }
 
 .code {
