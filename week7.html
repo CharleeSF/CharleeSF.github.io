@@ -9,7 +9,8 @@
 <p type="entrytext">
 	Whereas first I was looping over all the vector code and changing some stuff depending on some if statements I realized this wasn't necessary if I added certain key-value combinations to the to_replace dictionary.. I'm not sure if this is more or less foolproof, but for now it seems to work.
 	Examples of the things that I added to to_replace are:
-	<div class="code"><code>key:
+	<div class="code"><code><pre>
+key:
 const double v = _array_neurongroup_v[_idx];
 value:
 const double v = y[0];
@@ -18,7 +19,7 @@ key:
 const double _gsl_v_f0
 value:
 f[0]
-	</code></div>
+</pre></code></div>
 I could imagine a risk of this is that you need the code to be very consistent, i.e. if there is a space extra somewhere it doesn't work anymore.. Not sure if this will be an issue! 
 <a href="https://github.com/CharleeSF/brian2/commit/e22ec775fbde41968ca64ba2ed0e09e8f5cf687d" target="_blank">Code.</a>
 </p>

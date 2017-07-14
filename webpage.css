@@ -19,13 +19,8 @@ a {
   display:flex;
   flex-direction:column;
   background-color: #c392f0;
-  height:100vh;
 }
 
-#code{
-  flex:2;
-  overflow:auto;
-}
 
 #everything_wrapper {
   display: flex;
@@ -48,9 +43,6 @@ a {
   padding: 5px 40px 5px 40px;
   text-align: left;
   color: #c392f0;
-  flex:2;
-  overflow:auto;
-  height:50%;
 }
 
 .code {
