@@ -38,9 +38,31 @@ I could imagine a risk of this is that you need the code to be very consistent, 
 </p>
 <h3><bold>Added method_options to neurongroup</bold></h3>
 <p code="entrytext">
-	I'll talk about this next week, seeing that I have to celebrate the weekend!
+	There are several options you can specify when integrating with the GSL ode solver, such as the algorithm you want to use for solving your equations. These options are specified in the pieces of code in the template that are independent of the differential equations; they should be sent to the templater independent of the differential equations. 
+</p>
+<p code="entrytext">
+	The option to send parameters for chosen numerical integration methods was mentioned as an issue <a href="https://github.com/brian-team/brian2/issues/481" target="_blank">before</a>. When solving this, the goal was basically to have a dictionary of options available at the StateUpdateMethod (where the abstract code is written) and at the code generator (where the actual code is written; here is where we need it for GSL). 
+</p>
+<p code="entrytext">
+	Choosing how to get the options to the StateUpdateMethod was easy. I just followed how the method variable itself was sent around. As a keyword to the <a href="https://github.com/CharleeSF/brian2/blob/67b1f2e843f8645d89ab4feba281e1e307940717/brian2/groups/neurongroup.py#L399" target="_blank">__init__</a> of the NeuronGroup class, in which it is sent to the <a href="https://github.com/CharleeSF/brian2/blob/67b1f2e843f8645d89ab4feba281e1e307940717/brian2/groups/neurongroup.py#L525" target="_blank">StateUpdater class</a>. In the StateUpdater it is added as a attribute to self <a href="https://github.com/CharleeSF/brian2/blob/67b1f2e843f8645d89ab4feba281e1e307940717/brian2/groups/neurongroup.py#L100" target="_blank">just before</a> its CodeRunner object is initiated, just like the choice of method. When the apply_state_update method is <a href="https://github.com/CharleeSF/brian2/blob/67b1f2e843f8645d89ab4feba281e1e307940717/brian2/groups/neurongroup.py#L178" target="_blank">called</a>, self.method_options is sent as a keyword. Thus, I also added the keyword to the apply_stateupdater method of the StateUpdateMethod class and <a href="https://github.com/CharleeSF/brian2/blob/67b1f2e843f8645d89ab4feba281e1e307940717/brian2/stateupdaters/base.py#L164" target="_blank">here</a> I add it as an attribute to the stateupdater so it will be accessible when the stateupdater is called.
+</p>
+<p code="entrytext">
+	Getting the options to the generator I did as following, but I'm not sure if this is the most elegant way. The codeobj_class is available upon initiation of the generator. Hence, if we can get the options to the codeobj_class we would have them in the generator too. The transfer of the options to the codeobj_class is done in the create_runner_codeobj, where both the group class and codeobj_class are available. To make sure that this only happens with 'updated' groups that actually have the method_options attribute this <a href="https://github.com/CharleeSF/brian2/blob/67b1f2e843f8645d89ab4feba281e1e307940717/brian2/codegen/codeobject.py#L214" target="_blank">transfer</a> only occurs when hasattr(group, 'method_options'). The final transfer from codeobj_class to the generator itself happens in the __init__ of the GSLCodeGenerator, and could be added to other generators if needed. In our case, I add the method_options as a keyword sent to the templater.
 </p>
 <h3><bold>Automatic selection of the right CodeObject</bold></h3>
 <p code="entrytext">
-	Same goes for this :)
+	So far we have been changing the codeobject_class of the stateupdater of the NeuronGroup manually after creating the neurongroup instance, like:
+	<div class="code"><pre><code>
+neurons = NeuronGroup(n, model=eqs, threshold='v > 1', reset='v = 0',
+                method='GSL_stateupdater', method_options=method_options)
+neurons.stateupdater.codeobj_class = GSLWeaveCodeObject
+	</code></pre></div>
+	However, we want setting the method to 'GSL_stateupdater' to be enough to select all the right settings to integrate with GSL (and prefs.codegen.target with which target language this is achieved). 
+	Until now, Brian had only one CodeObject per target language, and the CodeObject is thus set based on the set target language. You can give the CodeObject class to the NeuronGroup as a keyword as well but then all objects related to the neurongroup (monitors, thresholders etc.) will also try to use this codeobject class, and I have only written code to deal with stateupdating equations. Consequently, I had to slightly change the Brian code itself to deal with this situation.
+</p>
+<p class="entrytext">
+	The first change that I made to achieve that Brian changes its codeobject class only for its stateupdater is that I add the codeobj class as an attribute to the stateupdater itself. And instead of returning the abstract code as a string, I also add it as an attribute. When <code class="code">StateUpdateMethod.apply_stateupdater()</code> is called, it returns a method: this method can be called from the update_abstract_code method which is a method of the StateUpdater class. So if the returned method is called with 'self' as an argument we have access to both the StateUpdateMethod class and the StateUpdater, so all we need to do is 'transfer' the codeobj_class that was selected by the StateUpdateMethod (which has also got a method to decide between GSLWeaveCodeObject, GSLCythonCodeObject and GSLCPPStandaloneCodeObject). The method then returns the earlier generated abstract code.
+</p>
+<p class="entrytext">
+	I had to make a small modification to the CPP Standalone device to make the former work with CPP standalone. That is, the CPP Standalone device ignores any CodeObject you have selected.. So the former has no effect. Because of this I added a check that in the case that the codeobj_class is equal to GSLCPPStandaloneCodeObject, Brian does need to return the selected codeobj_class. However, writing this, I realize that this is a hardcoded check against GSL, which is something we tried to avoid. I have added a TODO to change this and I will think of how to do this. 
 </p>
