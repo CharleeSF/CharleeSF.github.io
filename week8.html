@@ -1,0 +1,59 @@
+<h2 class="entrytitle">Eigth week (July 21st, 2017)</h2>
+<h3><bold>
+Writing tests
+</bold></h3>
+<p class="entrytext">
+To be written.
+</p>
+<h3><bold>
+Pull requests for method_options and support_code_lines
+</bold></h3>
+<p class="entrytext">
+Made separate branch for both of these issues and just manually copied the changes I made in the GSL branch to achieve these things (see week 7 for more details). Still TODO: add method_options to synapses and spatial neuron.
+</p>
+<h3><bold>
+SpatialNeuron
+</bold></h3>
+<p class="entrytext">
+A few files in the compartmental examples folder don't run at all. The message I get is the following:
+<pre><code class="code">
+  File "/home/charlee/PycharmProjects/brian2/brian2/groups/neurongroup.py", line 152, in make_namespace_variables
+    var, op, expr, comment = parse_statement(line)
+  File "/home/charlee/PycharmProjects/brian2/brian2/parsing/statements.py", line 41, in parse_statement
+    '\n' + ' ' * (p_exc.column - 1) + '^\n' + str(p_exc))
+ValueError: Parsing the statement failed: 
+
+^
+Expected W:(ABCD...,ABCD...) (at char 0), (line:1, col:1)
+
+Error encountered with object named "spatialneuron_stateupdater".
+Object was created here (most recent call only, full details in debug log):
+  File "/home/charlee/PycharmProjects/brian2/examples/compartmental/bipolar_cell.py", line 21, in module
+    Cm=1*uF/cm**2, Ri=100*ohm*cm, method='exponential_euler')
+
+An error occurred when preparing an object. ValueError: Parsing the statement failed: 
+
+^
+Expected W:(ABCD...,ABCD...) (at char 0), (line:1, col:1)
+(See above for original error message and traceback.)
+</code></pre>
+this applies to bipolar_cell.py, bipolar_with_inputs.py, cylinder.py, infinite_cable.py, lfp.py and rall.py. I haven't really looked into whether the reason for this is obvious. Maybe Marcel knows?
+</p>
+<p class="entrytext">
+All the other files (hh_with_spikes.py, hodgkin_huxley_1952.py, bipolar_with_inputs2.py and spike_initiation), though, seem to work with setting the method to 'GSL_stateupdater' without a problem. I ran in only one minor issue trying this out, and that was that I set the 'adaptable_timestep' option of the GSL integrator to False on default, and with the default epsilon values the errors were too large when running hodgkin_huxley_1952 resulting in an integration error. Changing these default settings got rid of the integration error (also nice test of the catching of an integration error!)
+</p>
+<p class="entrytext">
+TODO: add method_options to the SpatialNeuron class!
+</p>
+<h3><bold>
+_array_neurongroup_1_clock_t etc.
+</bold></h3>
+<p class="entrytext">
+To be written.
+</p>
+<h3><bold>
+set needed_variables = ['t', 'dt'] at GSL-specific location
+</bold></h3>
+<p class="entrytext">
+To be written.
+</p>
