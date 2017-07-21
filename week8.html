@@ -17,9 +17,11 @@ SpatialNeuron
 <p class="entrytext">
 A few files in the compartmental examples folder don't run at all. The message I get is the following:
 <pre><code class="code">
-  File "/home/charlee/PycharmProjects/brian2/brian2/groups/neurongroup.py", line 152, in make_namespace_variables
+  File "/home/charlee/PycharmProjects/brian2/brian2/groups/neurongroup.py", 
+  	line 152, in make_namespace_variables
     var, op, expr, comment = parse_statement(line)
-  File "/home/charlee/PycharmProjects/brian2/brian2/parsing/statements.py", line 41, in parse_statement
+  File "/home/charlee/PycharmProjects/brian2/brian2/parsing/statements.py", 
+  	line 41, in parse_statement
     '\n' + ' ' * (p_exc.column - 1) + '^\n' + str(p_exc))
 ValueError: Parsing the statement failed: 
 
@@ -28,7 +30,8 @@ Expected W:(ABCD...,ABCD...) (at char 0), (line:1, col:1)
 
 Error encountered with object named "spatialneuron_stateupdater".
 Object was created here (most recent call only, full details in debug log):
-  File "/home/charlee/PycharmProjects/brian2/examples/compartmental/bipolar_cell.py", line 21, in module
+  File "/home/charlee/PycharmProjects/brian2/examples/compartmental/
+  bipolar_cell.py", line 21, in module
     Cm=1*uF/cm**2, Ri=100*ohm*cm, method='exponential_euler')
 
 An error occurred when preparing an object. ValueError: Parsing the statement failed: 
