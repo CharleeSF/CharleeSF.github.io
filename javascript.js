@@ -2,7 +2,7 @@
 $(document).ready(function() {
     // load last written entry on default
     $.ajax({
-        url : "week8.html",
+        url : "week11.html",
         dataType: "text",
         success : function (data) {
             $(".text").html(data);
