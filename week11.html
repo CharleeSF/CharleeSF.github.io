@@ -222,6 +222,8 @@ Ehm.. Oh yeah, explore why Brian rk4 method and GSL rk4 method with fixed timest
 <li>
 I think there is some unnecessary namespace unpacking, especially in the generated cython files. Also the declaration of pointers of data only used in _GSL_func is unnecessary.
 </li>
+<li>
+Either: dynamically choosing the index to be used (i.e. variations on '_idx') or just detecting variations and throwing an exception.
 </ul>
 
 </p>
