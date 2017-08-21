@@ -1,0 +1,90 @@
+  				<h2 class="entrytitle">First week (June 3rd, 2017)</h2>
+  				<h3>
+  					<bold>Benchmarking the benefit of tabular data.</bold>
+  				</h3>
+  				<p type="entrytext">
+  					As part of a preparatory exercise I was asked to address the potential benefit of using precomputed tables instead of calculating certain functions at every timestep (see <a href="https://github.com/brian-team/brian2/issues/87" target="_blank">here</a>). In addition, we wanted to explore the cost-benefit of linear interpolation between table values.
+  				</p>
+  				<p type="entrytext">
+  					The first issue I ran into was that Brian was not working with weave. It kept giving 'undefined symbol' errors. It must have been related to the way I installed everything into my conda environment, because switching to an environment and reinstalling everything through conda (<code>conda install -n $environmentname -c brian-team brian2</code>) and deleting the actual brian package itself (because I want it to run from the code in my repository rather than the installed package.. not sure if this is the way to go about this 'profesionally'), but it got everything to work.
+  				</p>
+  				<p type="entrytext">
+  					To implement the table search in any of the target languages one of the challenges was to figure out how to give them access to the globally defined precomputed table. An example of the end-result looks as follows (note the namespace keyword, the global _namespace in the cython code, and the accessing of the variables):
+  					<div class="code"><pre><code>
+@implementation('cpp', 
+    namespace={'_values_alpha_m': array(_values_alpha_m)}, 
+    code='''
+double alpha_m_table(double index)
+{
+    return _namespace_values_alpha_m[int(index)];
+}
+''')
+@implementation('cython', code='''
+cdef double alpha_m_table(double index):
+    global _namespace_values_alpha_m
+    return _namespace_values_alpha_m[int(index)]
+''', namespace={'_values_alpha_m':_values_alpha_m}
+)
+@check_units(idx=1,result=Hz)
+def alpha_m_table(idx):
+    return _values_alpha_m[idx]
+        			</code></pre></div>
+        			As can be seen, the input to the functions is the index to the precomputed table rather than the membrane potential. The index is calculated in a separate function (so that it does not have to be recomputed for every table) with the following code:
+        			<div class="code"><pre><code>
+@implementation('cpp',
+                code='''
+double int_calculator_table(double v)
+{
+    return ((v + 100*0.001)/(%f) + .5);
+}
+'''%(v_res))
+@implementation('cython',
+                code='''
+cdef int int_calculator_table(double v):
+    return int((v + 100*0.001)/(%f)+0.5)
+'''%(v_res))
+@check_units(v=volt,result=1)
+def int_calculator_table(v):
+    return int_((v + 100*mV)/(v_res)+0.5)
+    				</code></pre></div>
+    				The + .5 is omitted in the case of the interpolated functions, for which the weave code is:
+    				<div class="code"><pre><code>
+#include &lt;math.h&gt;
+double alpha_m_interpolation(double index)
+{
+    int floor_ind = int(floor(index));
+	double v0 = _namespace_values_alpha_m[floor_ind];
+    double v1 = _namespace_values_alpha_m[floor_ind+1];
+    double vfrac = index-floor_ind;
+
+    return (1 - vfrac) * v0 + vfrac * v1;
+}
+  					</code></pre></div>
+  				</p>
+  				<p type="entrytext">
+				So far the benchmarking is quite simple/limited. I simulate a 100 neurons with increasing constant input and compare the tabled/interpolated membrane traces with the calculated one according to the mean squared error. I plotted the simulation time (or specifically, the time spent in the stateupdater code) against the MSE. The numbers next to the data-points represent the indexes in <code>[0.001,0.005,0.01,0.05,0.1,.5,1]*mV</code> and specify the resolution with which the variable tables were calculated (<a href="https://github.com/brian-team/brian2/compare/master...CharleeSF:benchmarking_precomputed_tables" target="_blank">code</a>).
+                </p>
+				<p style="text-align:center;"><img src="exponentialeuler_timeMSE.png">
+                </p>
+				<p style="text-align:center;"><img src="rk4_timeMSE.png"></p>
+  				</p>
+
+  				<h3>
+  					<bold>Adding GSL to Brian.</bold>
+  				</h3>
+  				<p type="entrytext">
+  				In accordance with the proposal I wrote for my GSoC application, my first goal was to manually write a cython script that would be compiled as the stateupdater code and be used for the integration of the state variables of some equations. The most difficulat part in achieving this was making the GSL functions accessible to Cython. First there was the issue of linking the libraries with Brian, but this was quite easily resolved by changing some of the preference settings: 
+  				<div class="code"><pre><code>
+prefs.codegen.cpp.libraries += ['gsl', 'gslcblas']
+prefs.codegen.cpp.headers += ['gsl/gsl_odeiv2.h']
+prefs.codegen.cpp.include_dirs += 
+    ['/home/charlee/softwarefolder/gsl-2.3/gsl/']
+				</code></pre></div>
+				For the declarations of the functions in Cython I heaviliy relied on <a href="https://github.com/twiecki/CythonGSL" target="_blank">this</a> package linking the GSL library to Cython as a module. All I had to do was copy the right lines. The end result of my first hacked manual cythonscript that properly integrates a simple differential equation can be found in <a href="https://github.com/CharleeSF/brian2/commit/3e86bdedfaf91aa42285a8629107c3bcd20d11ae" target="_blank">this</a> commit.
+                </p>
+				<p type="entrytext">
+				As a next step I wanted to get Brian to write the main() of this script with it's code-generation machinery by making a StateUpdater that just returned this code (again, written manually). The idea is that this code is 'abstract' (target-code-independent), and that Brian converts it to for example Cython code. Using this did not work. Apparantly this step of the codegeneration process is really only meant for code that can be evaluated by Python itself.
+				</p>
+				<p type="entrytext">
+				So how are we going to get Brian to fill in our GSL code into the automatically generated stateupdater scripts? One possibility that we will probably have to use are the user-defined functions. For these, you can give Brian the code that is targetlanguage specific, and no optimization or checks take place. It is just directly injected above the main() of the final script. Hence, I converted the earlier mentioned code to have only code in the main() that would be the same for every set of equations (so we can just make a new template for this), and have all the equation-specific stuff happen in external functions. The end result can be seen in this <a href="https://github.com/CharleeSF/brian2/commit/71b808ebb511ce324d18c354df7f8f7d02203684" target="_blank">commit</a>. The only thing that we have to keep an eye on is how much we lose on performance by redeclaring the statevariables twice on every iteration. If this is significant, we have to come up with something else.
+				</p>

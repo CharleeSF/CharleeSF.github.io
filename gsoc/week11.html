@@ -1,0 +1,229 @@
+<h2 class="entrytitle">Eleventh week (August 9th, 2017)</h2>
+
+<!-- SECTION 1 -->
+<h3>
+<bold>
+Solving the parsing error that I introduced (<a href="https://github.com/brian-team/brian2/commit/5d98f84a0e89605eadb3eaae5456702ae4168000" target="_blank">code</a>)
+</bold>
+</h3>
+<p type="entrytext">
+In the beginning of time when I first started to work on Brian, I added the lines of code that can be seen in this commit. I don't even really remember why I did so, I think it was to add the _gsl_ tag variables to the namespace. However, calling self.make_namespace_variables() whitout abstract code raises a parsing error, because it results in calling <code class="code">parse_statement()</code> with an empty string. 
+</p>
+<p type="entrytext">
+Removing the bit of code solved the issue, and did not raise any new ones. However, it might be desirable to have either <code class="code">parse_statement()</code> or <code class="code">make_namespace_variables()</code> raise a more informative error message when being called with no input. Other than that I guess this is a lesson teaching me I should keep track of my changes and whether they're still needed..
+</p>
+
+<!-- SECTION 2 -->
+<h3>
+<bold>
+KeyErrors when differential veriables do not occur in the right-hand-side of equations (<a href="https://github.com/brian-team/brian2/commit/2b9e1e0c63f81485dc3cc00b27e904a4d2f3b300" target="_blank">code</a>)
+</bold>
+</h3>
+<p type="entrytext">
+Another equation that was causing the GSL generator code to raise an error was <code class="code">"dx/dt = 500*Hz : 1"</code>: it was raising a KeyError when the GSL_generator was trying to access 'x' by <code class="code">self.variables['x']</code>. The reason is that the abstract code for the aforementioned equation becomes <code class="code">_gsl_x_0 = 500*Hz</code>, and the variable x is not actually mentioned in this abstract code, leaving Brian in the dark about the fact that we actually do want to refer to this variable.
+</p>
+<p type="entrytext">
+A straight forward solution is to make sure Brian always knows about all differential variables by adding them ourselves. Seeing that we were already letting Brian know to use 't' and 'dt', a list of differential variables is easily added.
+</p>
+
+<!-- SECTION 3 -->
+<h3>
+<bold>
+Brian tagging differential equations are scalar (<a href="https://github.com/brian-team/brian2/commit/8d1bd734a1111e0703c9febe4e436dafb12ae80a" target="_blank">code</a>)
+</bold>
+</h3>
+<p type="entrytext">
+With the same equation (<code class="code">"dx/dt = 500*Hz : 1"</code>) I ran into another issue with the current code. That is, when no special measures are taken, the abstract code <code class="code">_gsl_x_0 = 500*Hz</code> is rendered to be scalar by Brian's analysis. However, we want all differntial equations to be contained in the <code class="code">_GSL_func</code> that is sent to the GSL driver, which is a direct translation of only the vector code. 
+</p>
+<p type="entrytext">
+The reason this abstract code is scalar according to Brian, is because the _gsl variables are not in <code class="code">self.variables</code> and Brian assumes any variable that does not exist here is scalar by default. This, too, was not hard to solve. All I did was adding the _gsl variables to self.variables with scalar=False and all differential equations are rendered as <code class="code">vector_code</code>.
+</p>
+
+<!-- SECTION 4 -->
+<h3>
+<bold>
+Translating docstrings to numpy style (<a href="https://github.com/brian-team/brian2/commit/e7272682e2500e1f97e010fec15373d46c160008" target="_blank">code</a>)
+</bold>
+</h3>
+<p type="entrytext">
+Trying to write proper docstrings. Aside from the fact that I'm not sure whether it is okay to mention variables that are not the arguments to the function itself (e.g. <code class="code">"Generate code for function dealing with GSLs y-vector"</code> mentions a variable y-vector??), I don't have much to say about it. I think the descriptions could probably be better, but if I look at other docstrings most are less detailed.
+</p>
+<p type="entrytext">
+
+</p>
+
+<!-- SECTION 5 -->
+<h3>
+<bold>
+Moving IntegrationError to GSLcython_rt (<a href="https://github.com/brian-team/brian2/commit/3124883c4ac7cbc3413f378f071698cf64865891" target="_blank">code</a>)
+</bold>
+</h3>
+<p type="entrytext">
+Code speaks for itself. Just figured the GSL_generator.py file wasn't the right place for this, but also not sure.
+</p>
+
+<!-- SECTION 6 -->
+<h3>
+<bold>
+Added prefs.GSL.directory with validator and default (<a href="https://github.com/brian-team/brian2/commit/36438b605dc3024582bd73a782ab897f6f9de36d" target="_blank">code</a>)
+</bold>
+</h3>
+<p type="entrytext">
+It was about time that I removed <code class="code">prefs.codegen.include_dirs += ['/home/charlee/softwarefolder/gsl-2.3/gsl/']</code> and replaced it with something more general. So I added is as a preference. The default is the default installation directory of the GNU Scientific Library itself, and a different location is easily set by setting <code class="code">prefs.GSL.directory = '...'</code>. In addition, I thought it was cool to do some checks to see if the directory is valid:
+<ul>
+<li>
+Is the given argument a string?
+</li>
+<li>
+Does the given URL point to an existing directory?
+</li>
+<li>
+Does the Existinc directory contain the files we use: <code class="code">gsl_odeiv2.h</code>, <code class="code">gsl_errno.h</code>, and <code class="code">gsl_matrix.h</code>. If any of these fail, an appropriate error message is given.
+</li>
+</ul>
+</p>
+
+<!-- SECTION 7 -->
+<h3>
+<bold>
+Check against CPPGSLCodeObject without introducing dependency (<a href="https://github.com/brian-team/brian2/commit/8013cf3b19a64677278b066ac4f475032cd7caa4" target="_blank">code</a>)
+</bold>
+</h3>
+<p type="entrytext">
+Another TODO that had been waiting to be tackled for a while was to change the fact that I hardcoded a check against a GSLCodeObject in the cpp_standalone device (see removed line in code). However, ,the solution I came up with feels a bit hacky. That is, I check whether the given codeobj_class has the attribute <code class="code">'original_generator_class'</code>, because only GSLCodeObjects have this attribute. However, without 'the existence' of GSL this check does not make much sense. Another option would be something more verbose, like giving the GSLCPPCodeObject an attribute that is called something like 'override_default_cpp_codeobject' and check for this attribute instead (i.e. <code class="code">if hasattr(codeobj_class, 'override_default_cpp_codeobject'): return codeobj_class</code>).
+</p>
+
+<!-- SECTION 8 -->
+<h3>
+<bold>
+Tackling trailing TODOs (<a href="https://github.com/brian-team/brian2/commit/3680db2fe55186b47e777ea5d37640aff3f1b707" target="_blank">code</a>)
+</bold>
+</h3>
+<p type="entrytext">
+Tsjah.. Most of the TODOs are ones about code I thought was a bit too hacky, but I now think is not horrible and I cannot necessarily come up with something better. Only the one about deleting the seperate <code class="code">other_variables</code> dictionary I deleted because I actually tried it and ran into unforeseen issues (because I was apparantly actually using this seperation to decide which variables to 'pull out' of the namespace).
+</p>
+
+<!-- SECTION 9 -->
+<h3>
+<bold>
+Using different names for internal variables <a href="https://github.com/brian-team/brian2/commit/7dd7d23e89ef975258cf51a94ade87ae38a8fc35" target="_blank">code</a>
+</bold>
+</h3>
+<p type="entrytext">
+First: Looking at this I see I was a bit careless with replacing variable names, and the string formatter <code class="code">%d</code> is now <code class="code">%_GSL_dataholder</code>. I guess I'll have to change this back.
+</p>
+<p type="entrytext">
+Other than that,
+<ul>
+<li><code class="code">p</code> is now <code class="code">_GSL_dataholder</code></li>
+<li><code class="code">d</code> is now <code class="code">_GSL_driver</code></li>
+<li><code class="code">y</code> is now <code class="code">_GSL_y</code></li>
+<li><code class="code">func</code> is now <code class="code">_GSL_func</code></li>
+</ul>
+</p>
+<p type="entrytext">
+Although Brian protects overlapping of variables for differential variable names bu not allowing variables starting with an underscore (i.e. you cannot call a differential variable _d), the fact that using such a variable as an external variable does not raise an exception surprises me (see double exception <a href="https://github.com/brian-team/brian2/commit/6e53df3f5ad745637f1519494ec881bd0650512a#diff-6d283103a1cfb6249d2a1028734d5a10R260" target="_blank">here</a>). This means that I still have to double check that users do not use the abovementioned variable names..
+</p>
+
+<!-- SECTION 10 -->
+<h3>
+<bold>
+Return value by StateUpdateMethod: method or class? (<a href="https://github.com/brian-team/brian2/commit/8d06962640b36f68c46e2c00b51beca6e68e9532" target="_blank">code</a>)
+</bold>
+</h3>
+<p type="entrytext">
+The code kind of speaks for itself. It is the result of a little brain fart I had when implementing GSL integration for Synapses. That is, I was getting an error because <code class="code">len(self.abstract_code)</code> was being called over the method that was returned by <code class="code">GSLStateUpdater.__call__()</code>. Hence, I converted the method to a class instead, that could actually give a response when given as an argument to <code class="code">len()</code>. However, I did not realize at the time that of course <code class="code">self.abstract_code</code> should never contain GSLStateUpdater's method. It should always contain a string!
+</p>
+<p type="entrytext">
+The problem here is that I didn't copy these lines to the Synapses class yet:
+<pre><code class="code">
+stateupdate_output = StateUpdateMethod.apply_stateupdater(self.group.equations,
+                                                           self.group.variables,
+                                                           self.method_choice,
+                                                           group_name=self.group.name)
+if isinstance(stateupdate_output, str):
+    self.abstract_code += stateupdate_output
+else:
+    self.abstract_code += stateupdate_output(self)
+</code></pre>
+For now, however, I'm leaving it. It is just as effective and who knows, maybe Marcel likes it. Otherwise it's very easy to change back.
+</p>
+<p class="entrytext">
+Note, that this and the two following points were all that was necessary to make all examples on Synapses run with GSL.
+</p>
+
+<!-- SECTION 11 -->
+<h3>
+<bold>
+method_options for SpatialNeuron and Synapses
+</bold>
+</h3>
+<p type="entrytext">
+For SpatialNeuron I only had to add a keyword <code class="code">method_options</code> in <code class="code">__init__</code> and pass the value for this keyword to the initialization of NeuronGroup (<a href="https://github.com/brian-team/brian2/commit/44f1e708cef59f43e6308723c2c319b5b96b4fd9" target="_blank">code</a>).
+</p>
+<p type="entrytext">
+To add the method_options option to Synapses I had to copy all the method_options-related changes I made in neurongroup.py (<a href="https://github.com/brian-team/brian2/commit/71dd10a8a392ae7ab9412b76416b19a8c9807df5" target="_blank">code</a>). 
+</p>
+
+<!-- SECTION 12 -->
+<h3>
+<bold>
+how to define get_array_name
+</bold>
+</h3>
+<p type="entrytext">
+I guess I basically found out why <code class="code">get_array_name</code> was defined as a <code class="code">@staticmethod</code>. Redefining the methods solves the problem, but not sure if there is a better way?
+</p>
+<p type="entrytext">
+The error message:
+<pre><code class="code">
+TypeError: unbound method get_array_name() must be called with GSLWeaveCodeGenerator 
+instance as first argument (got DynamicArrayVariable instance instead)
+</code></pre>
+This is in response of the following line:
+<pre><code class="code">
+if isinstance(var, DynamicArrayVariable):
+    dyn_array_name = self.generator_class.get_array_name(var,
+                                                        access_data=False)
+</code></pre> in <code class="code">WeaveCodeObject.variables_to_namespace()</code>.
+</p>
+
+<!-- SECTION 13 -->
+<h3>
+<bold>
+More test examples
+</bold>
+</h3>
+<p type="entrytext">
+All the astrocyte examples work :D one of them brought to light a minor bug regarding ignoring the 't' variable if it occurs in the vector code (instead checking <code class="code">var == 't'</code> it should have been <code class="code">actual_var == 't'</code>, see <a href="https://github.com/CharleeSF/brian2/blob/GSL/brian2/codegen/generators/GSL_generator.py#L606" target="_blank">code</a>). Also, just as was the case with the non-astrocyte examples, the output for balanced networks is always quite different: this is because these networks are very sensitive to the slightest modifications similar to chaotic systems. Any change in simulator or timestep etc. will always yield completely different output. Hence, I see these results as proof that Brian is actually using the GSL integrator and not pretending to do so :P (of course I also regularly check <code class="code">run_object.state_updater.codeobj.code</code> to help overcome this paranoia!)
+</p>
+
+<!-- SECTION 14 -->
+<h3>
+<bold>
+TODOs
+</bold>
+</h3>
+<p type="entrytext">
+Ok what is there still to do before everything is sort of ready to launch?
+<ul>
+<li>
+Write documentation
+</li>
+<li>
+Write tutorial?
+</li>
+<li>
+Explore efficiency. In general the GSL code is quite a bit slower than the conventional cpp code. However, the benefit should theoretically be that the numerical results will never deviate more than the given error bounds, and if this is unsuccessful the code will raise an error. I expect this to have as a consequence that larger dt's can be taken, especially for simulations using Hodgkin-Huxley like equations. It would be nice to give a brief overview of these benefits.
+</li>
+<li>
+Ehm.. Oh yeah, explore why Brian rk4 method and GSL rk4 method with fixed timestep do not produce exactly the same results??
+</li>
+<li>
+I think there is some unnecessary namespace unpacking, especially in the generated cython files. Also the declaration of pointers of data only used in _GSL_func is unnecessary.
+</li>
+<li>
+Either: dynamically choosing the index to be used (i.e. variations on '_idx') or just detecting variations and throwing an exception.
+</ul>
+
+</p>

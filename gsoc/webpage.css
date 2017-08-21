@@ -1,0 +1,85 @@
+img {
+  max-width:100%;
+}
+
+body { 
+	font-family: Trebuchet MS,Lucida Grande,Lucida Sans Unicode,Lucida Sans,Tahoma,sans-serif; 
+  text-align: center;
+  background-color: #EEE;
+  height: 100%;
+  width: 100%;
+}
+
+a {
+  text-decoration: none;
+  color: #15ee4f;
+}
+
+#container {
+  display:flex;
+  flex-direction:column;
+  background-color: #c392f0;
+}
+
+
+#everything_wrapper {
+  display: flex;
+  margin-left: 0px;
+  margin-right: auto;
+  padding: 10px;
+}
+
+#menu_wrapper {
+  width: 200px;
+}
+
+.entrytitle {
+  color: #15ee4f
+}
+
+.entry {
+  background-color: #551A8B;
+  margin: 20px;
+  padding: 5px 40px 5px 40px;
+  text-align: left;
+  color: #c392f0;
+}
+
+.code {
+  color: #FF9F00;
+}
+
+.entry {
+  border-radius: 10px;
+}
+
+#menu_wrapper {
+    margin: 0;
+    padding: 0;
+    width: 200px;
+    background-color: #f1f1f1;
+}
+
+.menu li a {
+    display: block;
+    color: #000;
+    padding: 8px 16px;
+    text-decoration: none;
+}
+
+/* Change the link color on hover */
+.menubutton:hover {
+    background-color: #c392f0;
+    color: white;
+}
+
+/* TODO: figure out how to keep color changed */
+p #menu:active {
+    background-color: #c392f0;
+    color: white;
+}
+
+.menubutton {
+  border: none;
+  font-size: 30px;
+}

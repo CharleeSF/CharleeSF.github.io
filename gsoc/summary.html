@@ -1,0 +1,80 @@
+<h2 class="entrytitle">Summary of GSoC project (August 21st, 2017)</h2>
+
+
+<h3>
+<bold>
+Pull requests
+</bold>
+</h3>
+<p class="entrytext">
+The bulk of my work on the Brian simulator is contained in a single pull request:
+</p>
+<p class="entrytext">
+TODO: ADD PULL REQUEST LINK
+</p>
+<p class="entrytext">
+In addition to this, I did a few pull requests that changed parts of Brian that did not only have to do with GSL integration (all really small changes):
+<ul>
+<li>Move <code class="code">get_default_code_object</code> functionality so it's device specific, so that the <code class="code">code_object_class</code> for the cpp_standalone device can also receive custom codeobjects. (<a href="https://github.com/brian-team/brian2/pull/865/files/0064932e83ffc31ce09c06419204a68fcdc08f99" target="_blank">Pull Request</a>, status: merged)</li>
+<li>Really small change in naming of the support code key that is sent to the jinja2 template. (<a href="https://github.com/brian-team/brian2/pull/859/files/dee2929e152450eb254105dfc5f503fc08436332" target="_blank">Pull Request</a>, status: merged)</li>
+<li>Add a method_options keyword to the initialization of <code class="code">NeuronGroup</code>, <code class="code">Synapses</code> and <code class="code">SpatialNeuron</code>, and have the options sent to the <code class="code">StateUpdater</code> and <code class="code">CodeGenerator</code>. Pull request needs to be updated to latest version before being ready for merge. (<a href="https://github.com/brian-team/brian2/pull/858" target="_blank">Pull Reqest</a>, status: open)</li>
+</ul>
+
+<h3>
+<bold>
+Project description (short)
+</bold>
+</h3>
+<p class="entrytext">
+In this Google Summer of Code project I implemented the option to carry out the numerical integration part in the <a href="http://brian2.readthedocs.io/en/stable/" target="_blank">Brian simulator</a> with integrators defined in the odeiv2 module that comes with the <a href="https://www.gnu.org/software/gsl/manual/html_node/Ordinary-Differential-Equations.html" target="_blank">GNU Scientific Library</a>. In addition to offering a few extra integration methods, the GSL integrator comes with the option of having an adaptable timestep. The latter functionality has major benefits for the speed with which large simulations in Brian can be run. This is because it allows the use of larger timesteps for the overhead loops in Python, without losing the accuracy of the numerical integration at points where small timesteps are necessary. I had personally used Brian before this project, and can tell from experience that this functionality can be very useful at times - especially when working with Hodgkin-Huxley-type equations. I think this speed-up could be an important factor for people to choose to use Brian for their simulations.
+</p>
+
+<h3>
+<bold>
+In depth description + user manual
+</bold>
+</h3>
+<p class="entrytext">
+TODO: ADD IN DEPTH DESCRIPTION OF ACHIEVEMENTS AND HOW TO USE
+</p>
+
+<h3>
+<bold>
+Illustration of benefits from variable timestep
+</bold>
+</h3>
+<p class="entrytext">
+In addition to offering several integration algorithms that are not yet offered in Brian (see first section), one of the biggest advantages of supporting the GSL ODE solvers is that they integrate with variable timesteps. This could be especially advantageous in situations where neurons/synapses are silent for long periods of time, but for which the time constants of state variables can suddenly be of submillisecond order. An example would be a network of Hodgkin-Huxley neurons with low average spiking rates: at any point in time only a small subset of state variables require high precision integration. However, every time a neuron spikes its dynamics become very fast, requiring integration with timesteps in the order of microseconds. 
+</p>
+<p class="entrytext">
+As an illustration of this benefit when having some neurons with long time constants and others with short ones consider a group of a hundred neurons that can be described by the following equation:
+<br/><code class="code">
+dv/dt = (-v + s)/tau
+</code><br/>
+where s and tau are set every 10 ms according to:
+<br/><code class="code">
+s = rand()
+<br/>
+tau = .01*ms + rand()*10*ms
+</code><br/>
+resulting in 'neurons' with time constants ranging from .01 to 10.1 ms. Now, what are the sizes of the timesteps that need to be taken in order to achieve comparable accuracy between GSL and the conventional Brian? And what is its effect on the overall simulation time?
+</p>
+<p class="entrytext">
+To achieve an accuracy so that the difference between the analytic solution and the numerical integration never exceeds <b>1e-3 volt</b> (1 mV), using rk2: <br/>
+On average, the GSL integrator takes <b class="code">1.4 steps/ms</b> and the resulting average error is 3.9e-5 volt (requiring .24 seconds/simulated second). I set the overhead timestep to 1 ms in this case. <br/>
+I looped over the simulation in the case of conventional brian, and if the maximum error exceeded 1 mV I halved the timestep and ran everything again. The dt that resulted the simulation to pass was 15.625 microseconds, equivalent to <b class="code">64 steps/ms</b>. The resulting average error is 3.7e-7 volt (requiring 1.23 second/simulated second). <br/>
+</p>
+<p class="entrytext">
+If I repeat this test for an accuracy of <b>1e-6 volt</b> then: <br/>
+GSL does <b class="code">7.7 steps/ms</b> on average for a simulation time of 1 seconds in <b class="code">.29 seconds</b>, while without adaptable timestep reaching this accuracy requires the whole simulation to be run with <b class="code">512 steps/ms</b> taking <b class="code">9.89 seconds</b>.
+</p>
+
+
+<h3>
+<bold>
+Notes relevant to future developers
+</bold>
+</h3>
+
+<p class="entrytext">
+</p>
