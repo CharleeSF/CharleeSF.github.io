@@ -7,10 +7,7 @@ Pull requests
 </bold>
 </h3>
 <p class="entrytext">
-The bulk of my work on the Brian simulator is contained in a single pull request:
-</p>
-<p class="entrytext">
-TODO: ADD PULL REQUEST LINK
+The bulk of my work on the Brian simulator is contained in a single pull request, to be found <a href="https://github.com/brian-team/brian2/pull/870" target="_blank">here</a>.
 </p>
 <p class="entrytext">
 In addition to this, I did a few pull requests that changed parts of Brian that did not only have to do with GSL integration (all really small changes):
@@ -31,11 +28,67 @@ In this Google Summer of Code project I implemented the option to carry out the 
 
 <h3>
 <bold>
-In depth description + user manual
+User manual
 </bold>
 </h3>
 <p class="entrytext">
-TODO: ADD IN DEPTH DESCRIPTION OF ACHIEVEMENTS AND HOW TO USE
+In addition to a choice between different integration methods, there is a few more
+options that can be specified when using GSL. These options can be specified by
+sending a dictionary as the method_options key upon initialization of the object
+using the integrator (<Code cLass="code"><b>NeuronGroup</b></code>, <Code class="code"><b>Synapses</b></code> or <Code clAss="code"><b>SpatialNeuron</b></code>).
+The available method options are:
+
+<ul>
+<li> <code class="code">adaptable_timestep</code>: whether or not to let GSL reduce the timestep to
+  achieve the accuracy defined with the <code class="code">absolute_error</code> and
+  <code class="code">absolute_error_per_variable</code> options described below. If this is set to False,
+  the timestep defined under the option <code class="code">dt_start</code> is used. If the resulted
+  estimated error exceeds the set error bounds, the simulation is aborted. When using
+  cython or weave this is reported with an <Code class="code"><b>IntegrationError</b></code>.
+  Defaults to True.
+</li><li> <code class="code">dt_start</code>: what timestep to use as default. In the case that <code class="code">adaptable_timestep</code>
+  is set to False, this is the timestep used for each integration step. Otherwise, it
+  is given to the GSL ODE solver as an initial guess of what would be a good time step.
+  if <code class="code">use_last_timestep</code> is set to True, this only affects the time step suggested
+  at the very start. Otherwise, this is the suggested timestep for each Brian time step.
+  Defaults to the dt set for the object using the integrator.
+</li><li> <code class="code">absolute_error</code>: each of the methods has a way of estimating the error that
+  is the result of using numerical integration. You can specify the maximum size of this
+  error to be allowed for any of the to-be-integrated variables in base units with this
+  keyword. Note that giving very small values makes the simulation slow and might result
+  in unsuccessful integration. In the case of using the <code class="code">absolute_error_per_variable</code>
+  option, this is the error for variables that were not specified individually.
+  Defaults to 1e-6.
+</li><li> <code class="code">absolute_error_per_variable</code>: specify the absolute error per variable in its own
+  units. Variables for which the error is not specified use the error set with the
+  <code class="code">absolute_error</code> option.
+  Defaults to None.
+</li><li> <code class="code">use_last_timestep</code>: with the <code class="code">adaptable_timestep</code> option set to True, GSL tries
+  different time steps to find a solution that satisfies the set error bounds.
+  It is likely that for Brian's next time step the GSL time step
+  will be somewhat similar per neuron (e.g. active neurons will have a shorter GSL time step
+  than inactive neurons). With this option set to True, the time step GSL found to satisfy
+  the set error bounds is saved per neuron and given to GSL again in Brian's next time step.
+  This also means that the final time steps are saved in Brian's memory and can thus
+  be recorded with the <Code Class="code"><b>StateMonitor</b></code>: it can be accessed under <code class="code">_last_timestep</code>.
+  Note that some extra memory is required to keep track of the last time steps.
+  Defauls to True.
+</li><li> <code class="code">save_failed_steps</code>: if <code class="code">adaptable_timestep</code> is set to True,
+  each time GSL tries a time step and it results in an estimated
+  error that exceeds the set bounds, one is added to the <code class="code">_failed_steps</code> variable. For
+  purposes of investigating what happens within GSL during an integration step, we offer
+  the optionality of saving this variable.
+  Defaults to False.
+</li><li> <code class="code">save_step_count</code>: the same goes for the total number of GSL steps taken in a single
+  Brian time step: this is optionally saved in the <code class="code">_step_count</code> variable.
+  Defaults to False.
+</li>
+</ul>
+
+Note that at the moment recording <code class="code">_last_timestep</code>, <code class="code">_failed_steps</code>, or <code class="code">_step_count</code>
+requires a call to <code class="code"><b>run</b></code> (e.g. with 0 ms) to trigger the code generation process, before the
+call to <Code Class="code"><b>StateMonitor</b></code>.
+
 </p>
 
 <h3>
