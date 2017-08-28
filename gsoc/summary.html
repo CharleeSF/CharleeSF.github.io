@@ -23,7 +23,7 @@ Project description (short)
 </bold>
 </h3>
 <p class="entrytext">
-In this Google Summer of Code project I implemented the option to carry out the numerical integration part in the <a href="http://brian2.readthedocs.io/en/stable/" target="_blank">Brian simulator</a> with integrators defined in the odeiv2 module that comes with the <a href="https://www.gnu.org/software/gsl/manual/html_node/Ordinary-Differential-Equations.html" target="_blank">GNU Scientific Library</a>. In addition to offering a few extra integration methods, the GSL integrator comes with the option of having an adaptable timestep. The latter functionality has major benefits for the speed with which large simulations in Brian can be run. This is because it allows the use of larger timesteps for the overhead loops in Python, without losing the accuracy of the numerical integration at points where small timesteps are necessary. I had personally used Brian before this project, and can tell from experience that this functionality can be very useful at times - especially when working with Hodgkin-Huxley-type equations. I think this speed-up could be an important factor for people to choose to use Brian for their simulations.
+In this Google Summer of Code project I implemented the option to carry out the numerical integration part in the <a href="http://brian2.readthedocs.io/en/stable/" target="_blank">Brian simulator</a> with integrators defined in the odeiv2 module that comes with the <a href="https://www.gnu.org/software/gsl/manual/html_node/Ordinary-Differential-Equations.html" target="_blank">GNU Scientific Library</a>. In addition to offering a few extra integration methods, the GSL integrator comes with the option of having an adaptable timestep. The latter functionality has major benefits for the speed with which large simulations in Brian can be run. This is because it allows the use of larger timesteps for the overhead loops in Python, without losing the accuracy of the numerical integration at points where small timesteps are necessary. I had personally used Brian before this project, and can tell from experience that this functionality can be very useful at times - especially when working with Hodgkin-Huxley-type equations. I think this speed-up could be an important factor for people to choose to use Brian for their simulations. In addition, a major benefit of using the ODE solvers from GSL is that an estimation is performed on how wrong the current solution is, so that simulations can be performed with some confidence on accuracy.
 </p>
 
 <h3>
@@ -31,6 +31,21 @@ In this Google Summer of Code project I implemented the option to carry out the 
 User manual
 </bold>
 </h3>
+<p class="entrytext">
+GSL implements several algorithms for performing numerical integration of initial value problems. Some of them need the Jacobian matrix; a feature I did not implement for Brian. Hence, all the integration methods that don't require the Jacobian matrix are also available for Brian. These are:
+<ul><li>
+    Explicit embedded Runge-Kutta (2, 3) method. Brian reference: <code class="code">'gsl_rk2'</code>.
+</li><li>
+    Explicit 4th order (classical) Runge-Kutta. Error estimation is carried out by the step doubling method. For more efficient estimate of the error, use the embedded methods described below. Brian reference: <code class="code">'gsl_rk4'</code>.
+</li><li>
+    Explicit embedded Runge-Kutta-Fehlberg (4, 5) method. This method is a good general-purpose integrator according to the documentation. Brian reference: <code class="code">'gsl_rkf45'</code>. This is the default and is therefore also available under <code class="code">'gsl'</code>.
+</li><li>
+    Explicit embedded Runge-Kutta Cash-Karp (4, 5) method. Brian reference: <code class="code">'gsl_rkck'</code>.
+</li><li>
+    Explicit embedded Runge-Kutta Prince-Dormand (8, 9) method. Brian reference: <code class="code">'gsl_rk8pd'</code>.
+</li></ul>
+Note that the reference numbers refer to references listed on <a href="https://www.gnu.org/software/gsl/manual/html_node/ODE-References-and-Further-Reading.html#ODE-References-and-Further-Reading" target="_blank">this</a> page.
+</p>
 <p class="entrytext">
 In addition to a choice between different integration methods, there is a few more
 options that can be specified when using GSL. These options can be specified by
@@ -125,9 +140,207 @@ GSL does <b class="code">7.7 steps/ms</b> on average for a simulation time of 1 
 
 <h3>
 <bold>
-Notes relevant to future developers
+Notes relevant to future developers/in depth description of the code
 </bold>
 </h3>
 
+
 <p class="entrytext">
+<b>StateUpdateMethod</b>
+</p>
+<p class="entrytext">
+The first part of Brian's codegeneration is the translation of equations to what we call 'abstract code'. In the case of Brian's stateupdaters so far, this abstract code describes the calculations that need to be done to update differential variables depending on their equations as is explained <a href="http://brian2.readthedocs.io/en/stable/advanced/state_update.html" target="_blank">here</a>. </br>
+In the case of preparing the equations for GSL integration this is a bit different. </br>
+Instead of writing down the computations that have to be done to reach the new value of the variable after a time step, the equations have to be described in a way that GSL understands.
+The differential equations have to be defined in a function and the function is given to GSL. This is best explained with an example. If we have the following equations (taken from the <a href="http://brian2.readthedocs.io/en/stable/examples/adaptive_threshold.html" target="_blank">adaptive threshold example</a>): </br>
+<code class="code">
+dv/dt = -v/(10*ms) : volt </br>
+dvt/dt =  (10*mV - vt)/(15*ms) : volt </br>
+</code>
+we would describe the equations to GSL as follows: </br>
+<code class="code">
+v = y[0] </br>
+vt = y[1] </br>
+f[0] = -v/(10e-3) </br>
+f[1] = (10e-3 - vt) </br>
+</code>
+Each differential variable gets an index. Its value at any time is saved in the y-array and the derivatives are saved in the f-array. </br>
+However, doing this translation in the stateupdater would mean that Brian has to deal with variable descriptions that contain array accessing: something that for example sympy doesn't do. Because we still want to use Brian's existing parsing and checking mechanisms, we needed to find a way to describe the abstact code with only 'normal' variable names. </br>
+Our solution is to replace the y[0]s and f[0]s etc. with a 'normal' variable name that is later replaced just before the final code generation (in the GSLCodeGenerators). It has a tag and all the information needed to write the final code. As an example, the GSL abstract code for the above equations would be: </br>
+<code class="code">
+v = _gsl_y0 </br>
+vt = _gsl_y1 </br>
+_gsl_f0 = -v/(10e-3) </br>
+_gsl_f1 = (10e-3 - vt) </br>
+</code>
+In the GSLCodeGenerator these tags get replaced by the actual accessing of the arrays.
+</p>
+<p class="entrytext">
+So far, each code generation language (numpy, weave, cython) there was just one set of rules of how to translate abstract code to real code, described in its respective CodeObject and CodeGenerator. If the target language is set to weave, the stateupdater will use the WeaveCodeObject, just like other objects such as the StateMonitor. However, to achieve the above decribed translations of the abstract code generated by the StateUpdateMethod, we need a special WeaveCodeObject for the stateupdater alone (which at its turn can contain the special CodeGenerator), and this CodeObject should be selected based on the chosen StateUpdateMethod. 
+</p>
+<p class="entrytext">
+In order to be able to let the StateUpdateMethod to tell Brian what CodeObject to use, I had to change a few things in Brian. Instead of just letting StateUpdateMethod return a string that contains the abstract code, I let it return a class that can be called with an object that contains the codeobject_class in Brian in the conventional code already: the stateupdater itself. When called, this class returns the abstract code. To achieve this I had to change a few lines in the existing calls to StateUpdateMethod.apply_stateupdater() in NeuronGroup and Synapses so that the returned value is called with the stateupdater itself if it is not a string (<a href="https://github.com/brian-team/brian2/pull/870/files#diff-f4f55aea370c3453adbf6729162ed470R68" target="_blank">code</a>). Potentially, the option of returning a callable might be useful for the implementation of other types of integrators in the future as well.
+</p>
+<p class="entrytext">
+As a side note: a small change I made as well was to add method_options to the integrators. They're accessible as an attribute of the StateUpdateMethod and the 'owner' of the stateupdater (e.g. Neuronroup, Synapses).
+</p>
+
+
+<p class="entrytext">
+<b>GSLCodeObjects</b>
+</p>
+<p class="entrytext">
+Changes to 'standard' target language CodeObjects:
+<ul>
+<li>
+Overwrite stateupdate template: stateupdate.cpp for weave/cpp_standalone and stateupdate.pyx for cython. Because the original templaters have a 'derive' method that can be called that makes a copy of the original templater except for the files contained in a given folder, this is super easy (<a href="https://github.com/brian-team/brian2/pull/870/files#diff-c5f407bfaa3a2bed8a52f2f424eaeda9R24" target="_blank">weave</a>/<a href="https://github.com/brian-team/brian2/pull/870/files#diff-d2e5876f30a9fdebb0e3623206a4437cR12" target="_blank">cpp</a>/<a href="https://github.com/brian-team/brian2/pull/870/files#diff-4d53036d09fc9093c63c43d4f7387cd1R23" target="_blank">cython</a> code).
+</li>
+<li>
+Have a GSL specific generator_class. Note that, because we want to use the conventional target-language generators, we save these in the attribute 'original_generator_class' (see section on GSLCodeGenerators for more details). Since the same GSLGenerator can be used for both weave and cpp, the GSLCPPStandaloneCodeObject has the WeaveCodeGenerator as its generator_class.
+</li>
+</ul>
+In addition, this allowed us to catch compilation errors so we can give the user some information on that it might be GSL-related (overwrriting the compile() method in the case of cython and the run() method for weave). In the case of the cpp CodeObject such overriding wasn't really possible so compilation errors there might be quite undescriptive.
+</p>
+
+
+<p class="entrytext">
+<b>GSLCodeGenerators</b>
+- Using original_generator_class first and use the output of this!
+</p>
+<p class="entrytext">
+This is where the magic happens. Roughly 1000 lines of code define the translation of abstract code to code that uses the GNU Scientific Library's ODE solvers to achieve stateupdates.
+</p>
+<p class="entrytext">
+Upon a call to run, the code objects necessary for the simulation get made. The code for this is described in the device. 
+Part of making the code objects is generating the code that descibes the code objects. This starts with a call to generator.translate() (<a href="https://github.com/brian-team/brian2/blob/master/brian2/devices/device.py#L304" target="_blank">code</a>), which in the case of GSL brings us to the <a href="https://github.com/CharleeSF/brian2/blob/48e34dd77bcc4b0e3956b000886eb0e0dee46708/brian2/codegen/generators/GSL_generator.py#L767" target="_blank">GSLCodeGenerator.translate()</a>. This method is built up as follows:
+<ul>
+<li>
+Some GSL-specific preparatory work.
+	<ul>
+	<li>
+	Check whether user used variable names that are reserved for the GSL code
+	</li>
+	<li>
+	Add the 'gsl tags' (see section on StateUpdateMethod) to the variables known to Brian as <b>non-scalars</b>. This is necessary to ensure that all equations containing 'gsl tags' are considered vector equations, and thus added to Brian's vector code. 
+	</li>
+	<li>
+	Add GSL integrator meta variables as official Brian variables, so these are also taken into account upon translation. The meta variables that are possible are described in the user manual (e.g. GSL's step taken in a single overhead step '_step_count'). 
+	</li>
+	<li>
+	Save function names. The original generators delete the function names from the variables dictionary once they are processed. However, we need to know later in the GSL part of the code generation whether a certain encountered variable name refers to a function or not.
+	</li>
+	</ul>
+</li>
+<li>
+Brian's general preparatory work. This piece of code is directly copied from the <a href="https://github.com/brian-team/brian2/blob/master/brian2/codegen/generators/base.py#L218" target="_blank">base CodeGenerator</a> and is thus similar as what is done normally.
+</li>
+<li>
+A call to original_generator.translate() to get the abstract code translated into code that is target-language specific.
+</li>
+<li>
+A lot of statements to translate the target-language specific code to GSL-target-language specific code, described in more detail below.
+</li>
+</ul>
+The biggest difference between conventional Brian code and GSL code is that the stateupdate-decribing lines are contained directly in the main() or in a separate function respectively. In both cases, the equations describing the system refer to parameters that are in the Brian namespace (e.g. <code class="code">dv/dt = -v/tau</code> needs access to tau). How can we access Brian's namespace in this separate function that is needed with GSL?
+</p>
+<p class="entrytext">
+First some background information. The 'separate function', _GSL_func, that is given to the GSL ODE solver has 4 arguments (need to be consistent so GSL knows what's where):
+<ul>
+<li>
+<code class="code">double t</code>: the current time. This is relevant when the equations are dependent on time.
+</li>
+<li>
+<code class="code">const double _GSL_y[]</code>: an array containing the current values of the differential variables (const because the cannot be changed by _GSL_func itself).
+</li>
+<li>
+<code class="code">double f[]</code>: an array containing the derivatives of the differential variables (i.e. the equations describing the differential system).
+</li>
+<li>
+<code class="code">void * params</code>: a pointer.
+</li>
+</ul>
+The pointer can be a pointer to whatever you want, and can thus point to a data structure containing the system parameters (such as tau). Because of this, a considerable amount of code needs to be added/changed:
+<ul>
+<li>
+The data structure, _GSL_dataholder, has to be defined with all variables needed in the vector code. For this reason, also the datatype of each variable is required.
+<ul><li>This is done in the method <code class="code">write_dataholder</code></li></ul>
+</li>
+<li>
+Instead of referring to the variables by there name only (e.g. <code class="code">dv/dt = -v/<b>tau</b></code>), the variables have to be accessed as part of the data structure (e.g. <code class="code">dv/dt = -v/<b>_GSL_dataholder->tau</b></code> in the case of weave/cpp). Also, as mentioned earlier, we want to translate the 'gsl tags' to what they should be in the final code (e.g. _gsl_f0 to f[0]).
+<ul><li>This is done in the method <code class="code">translate_vector_code</code>. It works based on the to_replace dictionary that simply contains the old variables as keys and new variables as values, and is given to the <code class="code">word_replace</code> function.</li></ul>
+</li>
+<li>
+The values of the variables in the datastructure have to be set to the values of the variables in the Brian namespace.
+<ul><li>This is done in the method <code class="code">unpack_namespace</code>, and for the 'scalar' variables that require calculation first it is done in the method <code class="code">translate_scalar_code</code>.</li></ul>
+</li>
+</ul>
+In addition, a few more 'support' functions are written:
+<ul>
+<li>
+<code class="code">int _set_dimension(size_t * dimension)</code>: sets the dimension of the system. Required for GSL.
+</li>
+<li>
+<code class="code">double* _assign_memory_y()</code>: allocates the right amount of memory for the y array (also according to the dimension of the system).
+</li>
+<li>
+<code class="code">int _fill_y_vector(_dataholder* _GSL_dataholder, double* _GSL_y, int _idx)</code>: pulls out the values for each differential variable out of the 'Brian' array into the y-vector. This happens in the vector loop (e.g. <code class="code">y[0] = _GSL_dataholder->_ptr_array_neurongroup_v[_idx];</code> for weave/cpp).
+</li>
+<li>
+<code class="code">int _empty_y_vector(_dataholder* _GSL_dataholder, double* _GSL_y, int _idx)</code>: the opposite of _fill_y_vector. Pulls final numerical solutions from the y array and gives it back to Brian's namespace.
+</li>
+<li>
+<code class="code">double* _set_GSL_scale_array()</code>: sets the array bound for each differential variable, for which the values are based on method_options['absolute_error'] and method_options['absolute_error_per_variable'].
+</li>
+</ul>
+All of this is written in support functions so that the vector code in the main() can stay almost constant for any simulation. However, it could be argued - as I have slowly added more keywords to the template anyway - that for example the dimension of the system and y-array could be set in the vector code loop directly with the help of a template keyword.
+</p>
+
+<p class="entrytext">
+<b>Stateupdate templates</b>
+</p>
+<p class="entrytext">
+There is many extra things that need to be done for each simulation when using GSL compared to conventional Brian stateupdaters. These are summarized here. (<a href="https://github.com/CharleeSF/brian2/blob/48e34dd77bcc4b0e3956b000886eb0e0dee46708/brian2/codegen/runtime/GSLcython_rt/templates/stateupdate.pyx" target="_blank">cython</a>/<a href="https://github.com/CharleeSF/brian2/blob/48e34dd77bcc4b0e3956b000886eb0e0dee46708/brian2/codegen/runtime/GSLweave_rt/templates/stateupdate.cpp" target="_blank">weave/cpp</a> code)
+</p>
+<p class="entrytext">
+Things that need to be done for every type of simulation:
+<ul>
+<li>
+Cython-only: define the structs and functions that we will be using in cython language (for weave these definitions already sit in GSL's own header files that are included).
+</li>
+<li>
+Prepare the <code class="code">gsl_odeiv2_system</code>: give function pointer, set dimension, give pointer to _GSL_dataholder as params.
+</li>
+<li>
+Allocate the driver (name for the struct that contains the info necessary to perform GSL integration)
+</li>
+<li>
+Define dt.
+</li>
+<li>
+After the loop: free all temporary pointers (y-array, scale-array, driver)
+</li>
+</ul>
+Things that need to be done every loop iteration for every type of simulation:
+<ul>
+<li>
+Define t and t1 (t + dt).
+</li>
+<li>
+Transfer the values in the Brian arrays to the y-array that will be given to GSL.
+</li>
+<li>
+Set _GSL_dataholder._idx (in case we need to access array variables in _GSL_func).
+</li>
+<li>
+Initialize the driver (reset counters, set h_start).
+</li>
+<li>
+Apply driver (either with adaptable- or fixed time step).
+</li>
+<li>
+Optionally save certain meta-variables
+</li>
+<li>
+Transfer values from GSL's y-vector to Brian arrays
+</li>
 </p>
